@@ -40,11 +40,9 @@ const App = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
 
-          {/* Onboarding (requires auth after account creation) */}
-          <Route element={<PrivateRoute />}>
-            <Route path="/onboarding/ai-setup" element={<AiSetupPage />} />
-            <Route path="/onboarding/loading" element={<AiLoadingPage />} />
-          </Route>
+          {/* 온보딩은 인증 불필요 - PrivateRoute 밖으로 */}
+          <Route path="/onboarding/ai-setup" element={<AiSetupPage />} />
+          <Route path="/onboarding/ai-loading" element={<AiLoadingPage />} />
 
           {/* Main app (requires auth) */}
           <Route element={<PrivateRoute />}>

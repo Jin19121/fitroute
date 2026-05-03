@@ -1,11 +1,12 @@
 // domain/user/dto/TokenResponse.java
 package com.fitroute.domain.user.dto;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
 public class TokenResponse {
-    private String accessToken;
-    private String refreshToken; // 다음 단계에서 Redis 연동
+    private final String accessToken;
+    private final String refreshToken;
 }

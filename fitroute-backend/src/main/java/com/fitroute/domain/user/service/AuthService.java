@@ -2,8 +2,9 @@
 package com.fitroute.domain.user.service;
 
 import com.fitroute.domain.user.dto.*;
-import com.fitroute.domain.user.entity.*;
+import com.fitroute.domain.user.entity.*; // User, UserProfile 포함
 import com.fitroute.domain.user.repository.*;
+import com.fitroute.global.enums.UserRole;
 import com.fitroute.global.exception.ErrorCode;
 import com.fitroute.global.jwt.JwtProvider;
 import com.fitroute.global.util.Aes256Util;
@@ -12,6 +13,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -32,13 +34,14 @@ public class AuthService {
     public void signup(SignupRequest req) {
         String encryptedEmail = aes256Util.encrypt(req.getEmail());
 
-        if (userRepository.existsByEmail(encryptedEmail)) {
+        if (userRepository.existsByEncryptedEmail(encryptedEmail)) {
             throw new IllegalArgumentException(ErrorCode.DUPLICATE_EMAIL.getMessage());
         }
 
         User user = userRepository.save(User.builder()
-                .email(encryptedEmail)
+                .encryptedEmail(encryptedEmail) // email → encryptedEmail
                 .password(passwordEncoder.encode(req.getPassword()))
+                .role(UserRole.USER) // role 추가 (import도 필요)
                 .build());
 
         userProfileRepository.save(UserProfile.builder()
@@ -47,6 +50,9 @@ public class AuthService {
                 .weight(req.getWeight())
                 .targetWeight(req.getTargetWeight())
                 .targetPeriod(req.getTargetPeriod())
+                .gender(req.getGender()) // 신규
+                .birthDate(req.getBirthDate()) // 신규
+                .activityLevel(req.getActivityLevel()) // 신규
                 .build());
     }
 
@@ -54,7 +60,7 @@ public class AuthService {
     public TokenResponse login(LoginRequest req) {
         String encryptedEmail = aes256Util.encrypt(req.getEmail());
 
-        User user = userRepository.findByEmail(encryptedEmail)
+        User user = userRepository.findByEncryptedEmail(encryptedEmail)
                 .orElseThrow(() -> new IllegalArgumentException(ErrorCode.USER_NOT_FOUND.getMessage()));
 
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {

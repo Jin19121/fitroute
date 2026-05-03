@@ -15,6 +15,7 @@ import {
     validateTargetWeight,
     validateTargetPeriod,
 } from '../../utils/validators';
+import useOnboardingStore from '../../store/onboardingStore';
 
 // ── Step 1: Account credentials ───────────────────────────────────────────────
 const StepAccount = ({ form, onChange, errors }) => (
@@ -79,13 +80,49 @@ const NumRow = ({ icon, label, value, onChange, error, unit, min, max, step = '0
     </div>
 );
 
-const StepProfile = ({ form, onChange, errors }) => (
+const StepProfile = ({ form, onChange, onGenderChange, errors }) => (
     <div className="flex flex-col gap-4">
         <div>
             <div className="text-[10px] text-[#4A7BFF] font-semibold mb-1">STEP 2 / 3</div>
             <h2 className="text-[17px] font-bold text-[#1A1A1A]">기본 정보를 알려주세요</h2>
             <p className="text-[11px] text-[#B8B4AE] mt-1">AI 맞춤 플랜 생성에 사용돼요</p>
         </div>
+
+        {/* 성별 */}
+        <div>
+            <p className="text-[12px] text-[#6B6866] mb-2">성별</p>
+            <div className="flex gap-2">
+                {['MALE', 'FEMALE'].map((g) => (
+                    <button
+                        key={g}
+                        type="button"
+                        onClick={() => onGenderChange(g)}
+                        className={`flex-1 py-2 rounded-[10px] text-[12px] font-semibold border transition-colors
+                            ${form.gender === g
+                                ? 'bg-[#4A7BFF] text-white border-[#4A7BFF]'
+                                : 'bg-white text-[#6B6866] border-[#E8E4DE]'}`}
+                    >
+                        {g === 'MALE' ? '남성' : '여성'}
+                    </button>
+                ))}
+            </div>
+            {errors.gender && <p className="text-[10px] text-red-500 mt-1">{errors.gender}</p>}
+        </div>
+
+        {/* 생년월일 */}
+        <div>
+            <p className="text-[12px] text-[#6B6866] mb-1">생년월일</p>
+            <input
+                type="date"
+                value={form.birthDate}
+                onChange={onChange('birthDate')}
+                max={new Date().toISOString().split('T')[0]}
+                className="w-full border border-[#E8E4DE] rounded-[10px] px-3 py-2 text-[13px] text-[#1A1A1A] bg-white outline-none"
+            />
+            {errors.birthDate && <p className="text-[10px] text-red-500 mt-1">{errors.birthDate}</p>}
+        </div>
+
+        {/* 기존 수치 입력들 */}
         <div className="bg-white rounded-[12px] px-4">
             <NumRow icon="📏" label="키" value={form.height} onChange={onChange('height')} error={errors.height} unit="cm" min={100} max={250} />
             <NumRow icon="⚖️" label="현재 체중" value={form.weight} onChange={onChange('weight')} error={errors.weight} unit="kg" min={20} max={300} />
@@ -118,6 +155,8 @@ const validateStep = (step, form) => {
         if (wErr) errors.weight = wErr;
         if (twErr) errors.targetWeight = twErr;
         if (tpErr) errors.targetPeriod = tpErr;
+        if (!form.gender) errors.gender = '성별을 선택해주세요.';
+        if (!form.birthDate) errors.birthDate = '생년월일을 입력해주세요.';
     }
     return errors;
 };
@@ -136,6 +175,8 @@ const SignupPage = () => {
         weight: '',
         targetWeight: '',
         targetPeriod: '',
+        gender: null,      // 추가
+        birthDate: '',     // 추가
     });
     const [fieldErrors, setFieldErrors] = useState({});
 
@@ -159,6 +200,8 @@ const SignupPage = () => {
 
     const handleBack = () => setStep((s) => s - 1);
 
+    const { setCredentials, setProfile } = useOnboardingStore();
+
     // After step 2: navigate to AiSetupPage, passing partial form data
     const handleProceedToAiSetup = () => {
         const errors = validateStep(2, form);
@@ -166,18 +209,16 @@ const SignupPage = () => {
             setFieldErrors(errors);
             return;
         }
-        navigate('/onboarding/ai-setup', {
-            state: {
-                accountData: {
-                    email: form.email.trim(),
-                    password: form.password,
-                    height: parseFloat(form.height),
-                    weight: parseFloat(form.weight),
-                    targetWeight: parseFloat(form.targetWeight),
-                    targetPeriod: parseInt(form.targetPeriod, 10),
-                },
-            },
+        setCredentials({ email: form.email.trim(), password: form.password });
+        setProfile({
+            gender: form.gender,
+            birthDate: form.birthDate,
+            height: parseFloat(form.height),
+            weight: parseFloat(form.weight),
+            targetWeight: parseFloat(form.targetWeight),
+            targetPeriod: parseInt(form.targetPeriod, 10),
         });
+        navigate('/onboarding/ai-setup');
     };
 
     const emailError = fieldErrors.email || (error?.field === 'email' ? error.message : null);
@@ -206,7 +247,12 @@ const SignupPage = () => {
                     />
                 )}
                 {step === 2 && (
-                    <StepProfile form={form} onChange={handleChange} errors={fieldErrors} />
+                    <StepProfile
+                        form={form}
+                        onChange={handleChange}
+                        onGenderChange={(g) => setForm((prev) => ({ ...prev, gender: g }))}
+                        errors={fieldErrors}
+                    />
                 )}
 
                 {globalError && (
