@@ -1,5 +1,5 @@
 > Task :compileJava
-> Task :processResources UP-TO-DATE
+> Task :processResources
 > Task :classes
 > Task :resolveMainClassName
 
@@ -14,32 +14,34 @@
 
  :: Spring Boot ::      (v3.5.15-SNAPSHOT)
 
-2026-05-04T00:28:10.326+09:00  INFO 41912 --- [  restartedMain] com.fitroute.FitrouteApplication         : Starting FitrouteApplication using Java 21.0.2 with PID 41912 (/Users/kimjimin/IdeaProjects/fitroute/fitroute-backend/build/classes/java/main started by ? in /Users/kimjimin/IdeaProjects/fitroute/fitroute-backend)
-2026-05-04T00:28:10.328+09:00  INFO 41912 --- [  restartedMain] com.fitroute.FitrouteApplication         : No active profile set, falling back to 1 default profile: "default"
-2026-05-04T00:28:10.363+09:00  INFO 41912 --- [  restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
-2026-05-04T00:28:10.363+09:00  INFO 41912 --- [  restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
-2026-05-04T00:28:11.100+09:00  INFO 41912 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
-2026-05-04T00:28:11.101+09:00  INFO 41912 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
-2026-05-04T00:28:11.222+09:00  INFO 41912 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 113 ms. Found 2 JPA repository interfaces.
-2026-05-04T00:28:11.238+09:00  INFO 41912 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
-2026-05-04T00:28:11.239+09:00  INFO 41912 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
-2026-05-04T00:28:11.252+09:00  INFO 41912 --- [  restartedMain] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.fitroute.domain.user.repository.UserProfileRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
-2026-05-04T00:28:11.252+09:00  INFO 41912 --- [  restartedMain] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.fitroute.domain.user.repository.UserRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
-2026-05-04T00:28:11.253+09:00  INFO 41912 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 6 ms. Found 0 Redis repository interfaces.
-2026-05-04T00:28:11.828+09:00  INFO 41912 --- [  restartedMain] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
-2026-05-04T00:28:11.842+09:00  INFO 41912 --- [  restartedMain] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2026-05-04T00:28:11.843+09:00  INFO 41912 --- [  restartedMain] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.54]
-2026-05-04T00:28:12.002+09:00  INFO 41912 --- [  restartedMain] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
-2026-05-04T00:28:12.004+09:00  INFO 41912 --- [  restartedMain] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1639 ms
-2026-05-04T00:28:12.191+09:00  INFO 41912 --- [  restartedMain] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
-2026-05-04T00:28:12.233+09:00  INFO 41912 --- [  restartedMain] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.49.Final
-2026-05-04T00:28:12.261+09:00  INFO 41912 --- [  restartedMain] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
-2026-05-04T00:28:12.533+09:00  INFO 41912 --- [  restartedMain] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
-2026-05-04T00:28:12.564+09:00  INFO 41912 --- [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-05-04T00:28:12.747+09:00  INFO 41912 --- [  restartedMain] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@756cadb9
-2026-05-04T00:28:12.749+09:00  INFO 41912 --- [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
-2026-05-04T00:28:12.792+09:00  WARN 41912 --- [  restartedMain] org.hibernate.orm.deprecation            : HHH90000025: MySQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
-2026-05-04T00:28:12.809+09:00  INFO 41912 --- [  restartedMain] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+2026-05-04T03:58:48.856+09:00  INFO 62232 --- [  restartedMain] com.fitroute.FitrouteApplication         : Starting FitrouteApplication using Java 21.0.2 with PID 62232 (/Users/kimjimin/IdeaProjects/fitroute/fitroute-backend/build/classes/java/main started by ? in /Users/kimjimin/IdeaProjects/fitroute/fitroute-backend)
+2026-05-04T03:58:48.858+09:00  INFO 62232 --- [  restartedMain] com.fitroute.FitrouteApplication         : No active profile set, falling back to 1 default profile: "default"
+2026-05-04T03:58:48.900+09:00  INFO 62232 --- [  restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2026-05-04T03:58:48.900+09:00  INFO 62232 --- [  restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2026-05-04T03:58:49.672+09:00  INFO 62232 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-05-04T03:58:49.673+09:00  INFO 62232 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-05-04T03:58:49.801+09:00  INFO 62232 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 120 ms. Found 4 JPA repository interfaces.
+2026-05-04T03:58:49.814+09:00  INFO 62232 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-05-04T03:58:49.815+09:00  INFO 62232 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-05-04T03:58:49.828+09:00  INFO 62232 --- [  restartedMain] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.fitroute.domain.plan.repository.PlanItemRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-05-04T03:58:49.830+09:00  INFO 62232 --- [  restartedMain] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.fitroute.domain.plan.repository.PlanRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-05-04T03:58:49.830+09:00  INFO 62232 --- [  restartedMain] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.fitroute.domain.user.repository.UserProfileRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-05-04T03:58:49.830+09:00  INFO 62232 --- [  restartedMain] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.fitroute.domain.user.repository.UserRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-05-04T03:58:49.830+09:00  INFO 62232 --- [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 8 ms. Found 0 Redis repository interfaces.
+2026-05-04T03:58:50.345+09:00  INFO 62232 --- [  restartedMain] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
+2026-05-04T03:58:50.357+09:00  INFO 62232 --- [  restartedMain] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-05-04T03:58:50.358+09:00  INFO 62232 --- [  restartedMain] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.54]
+2026-05-04T03:58:50.391+09:00  INFO 62232 --- [  restartedMain] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-05-04T03:58:50.392+09:00  INFO 62232 --- [  restartedMain] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1491 ms
+2026-05-04T03:58:50.555+09:00  INFO 62232 --- [  restartedMain] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-05-04T03:58:50.592+09:00  INFO 62232 --- [  restartedMain] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.49.Final
+2026-05-04T03:58:50.620+09:00  INFO 62232 --- [  restartedMain] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-05-04T03:58:50.838+09:00  INFO 62232 --- [  restartedMain] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-05-04T03:58:50.860+09:00  INFO 62232 --- [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-05-04T03:58:51.011+09:00  INFO 62232 --- [  restartedMain] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@1e5132f7
+2026-05-04T03:58:51.013+09:00  INFO 62232 --- [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-05-04T03:58:51.057+09:00  WARN 62232 --- [  restartedMain] org.hibernate.orm.deprecation            : HHH90000025: MySQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-05-04T03:58:51.071+09:00  INFO 62232 --- [  restartedMain] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
 	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
 	Database driver: undefined/unknown
 	Database version: 8.0.46
@@ -47,80 +49,126 @@
 	Isolation level: undefined/unknown
 	Minimum pool size: undefined/unknown
 	Maximum pool size: undefined/unknown
-2026-05-04T00:28:13.604+09:00  INFO 41912 --- [  restartedMain] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-05-04T03:58:51.839+09:00  INFO 62232 --- [  restartedMain] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+Hibernate: 
+    create table plan_items (
+        id bigint not null auto_increment,
+        calories integer not null,
+        carbs integer,
+        category enum ('ARMS','BACK','BREAKFAST','CARDIO','CHEST','CORE','DINNER','LEGS','LUNCH','REST','SHOULDERS','SNACK') not null,
+        date date not null,
+        exercise_name varchar(255),
+        fat integer,
+        food_name varchar(255),
+        protein integer,
+        reps integer,
+        sets integer,
+        type enum ('MEAL','WORKOUT') not null,
+        weight integer,
+        plan_id bigint not null,
+        primary key (id)
+    ) engine=InnoDB
+Hibernate: 
+    create table plans (
+        id bigint not null auto_increment,
+        created_at datetime(6),
+        end_date date,
+        error_message varchar(255),
+        raw_json TEXT,
+        source enum ('AI','USER'),
+        start_date date,
+        status enum ('ACTIVE','FAILED','GENERATING','SUPERSEDED'),
+        total_calories float(23),
+        user_id bigint,
+        primary key (id)
+    ) engine=InnoDB
 Hibernate: 
     alter table user_profiles 
-       add column birth_date date default '1900-01-01'
-2026-05-04T00:28:13.961+09:00  INFO 41912 --- [  restartedMain] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
-2026-05-04T00:28:14.843+09:00  WARN 41912 --- [  restartedMain] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
-2026-05-04T00:28:15.048+09:00  WARN 41912 --- [  restartedMain] .s.s.UserDetailsServiceAutoConfiguration : 
+       add column diet_style enum ('BALANCED','LOW_CALORIE','LOW_CARB_HIGH_PROTEIN') not null
+Hibernate: 
+    alter table user_profiles 
+       add column exercise_experience enum ('ADVANCED','BEGINNER','INTERMEDIATE') not null
+Hibernate: 
+    alter table user_profiles 
+       add column goal_type enum ('MAINTENANCE','MUSCLE_GAIN','WEIGHT_LOSS') not null
+Hibernate: 
+    alter table plan_items 
+       add constraint FKjx06o3q6yqqy4s534n3imw9t4 
+       foreign key (plan_id) 
+       references plans (id)
+Hibernate: 
+    alter table plans 
+       add constraint FKbybv5po44ssyv6svnv062dwrf 
+       foreign key (user_id) 
+       references users (id)
+2026-05-04T03:58:52.252+09:00  INFO 62232 --- [  restartedMain] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-05-04T03:58:52.531+09:00  WARN 62232 --- [  restartedMain] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'planGenerationService' defined in file [/Users/kimjimin/IdeaProjects/fitroute/fitroute-backend/build/classes/java/main/com/fitroute/domain/plan/service/PlanGenerationService.class]: Unsatisfied dependency expressed through constructor parameter 4: Error creating bean with name 'geminiClient': Injection of autowired dependencies failed
+2026-05-04T03:58:52.531+09:00  INFO 62232 --- [  restartedMain] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-05-04T03:58:52.534+09:00  INFO 62232 --- [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2026-05-04T03:58:52.541+09:00  INFO 62232 --- [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+2026-05-04T03:58:52.544+09:00  INFO 62232 --- [  restartedMain] o.apache.catalina.core.StandardService   : Stopping service [Tomcat]
+2026-05-04T03:58:52.555+09:00  INFO 62232 --- [  restartedMain] .s.b.a.l.ConditionEvaluationReportLogger : 
 
-Using generated security password: 7efe3a86-c295-40f9-a9e7-e2555050e1ef
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-05-04T03:58:52.569+09:00 ERROR 62232 --- [  restartedMain] o.s.boot.SpringApplication               : Application run failed
 
-This generated password is for development use only. Your security configuration must be updated before running your application in production.
+org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'planGenerationService' defined in file [/Users/kimjimin/IdeaProjects/fitroute/fitroute-backend/build/classes/java/main/com/fitroute/domain/plan/service/PlanGenerationService.class]: Unsatisfied dependency expressed through constructor parameter 4: Error creating bean with name 'geminiClient': Injection of autowired dependencies failed
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:804) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:240) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.autowireConstructor(AbstractAutowireCapableBeanFactory.java:1395) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1232) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:569) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:529) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:339) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:373) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:337) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:202) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.instantiateSingleton(DefaultListableBeanFactory.java:1228) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.preInstantiateSingleton(DefaultListableBeanFactory.java:1194) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.preInstantiateSingletons(DefaultListableBeanFactory.java:1130) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:991) ~[spring-context-6.2.18.jar:6.2.18]
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:628) ~[spring-context-6.2.18.jar:6.2.18]
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:146) ~[spring-boot-3.5.15-SNAPSHOT.jar:3.5.15-SNAPSHOT]
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:752) ~[spring-boot-3.5.15-SNAPSHOT.jar:3.5.15-SNAPSHOT]
+	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:439) ~[spring-boot-3.5.15-SNAPSHOT.jar:3.5.15-SNAPSHOT]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:318) ~[spring-boot-3.5.15-SNAPSHOT.jar:3.5.15-SNAPSHOT]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1361) ~[spring-boot-3.5.15-SNAPSHOT.jar:3.5.15-SNAPSHOT]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1350) ~[spring-boot-3.5.15-SNAPSHOT.jar:3.5.15-SNAPSHOT]
+	at com.fitroute.FitrouteApplication.main(FitrouteApplication.java:10) ~[main/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.boot.devtools.restart.RestartLauncher.run(RestartLauncher.java:50) ~[spring-boot-devtools-3.5.15-SNAPSHOT.jar:3.5.15-SNAPSHOT]
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'geminiClient': Injection of autowired dependencies failed
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor.postProcessProperties(AutowiredAnnotationBeanPostProcessor.java:515) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1459) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:606) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:529) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:339) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:373) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:337) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:202) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1708) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1653) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:913) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:791) ~[spring-beans-6.2.18.jar:6.2.18]
+	... 24 common frames omitted
+Caused by: org.springframework.util.PlaceholderResolutionException: Could not resolve placeholder 'google.ai.api-key' in value "${google.ai.api-key}"
+	at org.springframework.util.PlaceholderResolutionException.withValue(PlaceholderResolutionException.java:81) ~[spring-core-6.2.18.jar:6.2.18]
+	at org.springframework.util.PlaceholderParser$ParsedValue.resolve(PlaceholderParser.java:298) ~[spring-core-6.2.18.jar:6.2.18]
+	at org.springframework.util.PlaceholderParser.replacePlaceholders(PlaceholderParser.java:131) ~[spring-core-6.2.18.jar:6.2.18]
+	at org.springframework.util.PropertyPlaceholderHelper.replacePlaceholders(PropertyPlaceholderHelper.java:114) ~[spring-core-6.2.18.jar:6.2.18]
+	at org.springframework.core.env.AbstractPropertyResolver.doResolvePlaceholders(AbstractPropertyResolver.java:293) ~[spring-core-6.2.18.jar:6.2.18]
+	at org.springframework.core.env.AbstractPropertyResolver.resolveRequiredPlaceholders(AbstractPropertyResolver.java:264) ~[spring-core-6.2.18.jar:6.2.18]
+	at org.springframework.context.support.PropertySourcesPlaceholderConfigurer.lambda$processProperties$0(PropertySourcesPlaceholderConfigurer.java:186) ~[spring-context-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.resolveEmbeddedValue(AbstractBeanFactory.java:970) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1675) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1653) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.resolveFieldValue(AutowiredAnnotationBeanPostProcessor.java:784) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.inject(AutowiredAnnotationBeanPostProcessor.java:767) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.annotation.InjectionMetadata.inject(InjectionMetadata.java:146) ~[spring-beans-6.2.18.jar:6.2.18]
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor.postProcessProperties(AutowiredAnnotationBeanPostProcessor.java:509) ~[spring-beans-6.2.18.jar:6.2.18]
+	... 35 common frames omitted
 
-2026-05-04T00:28:15.056+09:00  INFO 41912 --- [  restartedMain] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
-2026-05-04T00:28:15.437+09:00  INFO 41912 --- [  restartedMain] o.s.b.d.a.OptionalLiveReloadServer       : LiveReload server is running on port 35729
-2026-05-04T00:28:15.469+09:00  INFO 41912 --- [  restartedMain] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'
-2026-05-04T00:28:15.478+09:00  INFO 41912 --- [  restartedMain] com.fitroute.FitrouteApplication         : Started FitrouteApplication in 5.529 seconds (process running for 5.918)
-2026-05-04T00:28:15.481+09:00  WARN 41912 --- [  restartedMain] o.s.core.events.SpringDocAppInitializer  : SpringDoc /v3/api-docs endpoint is enabled by default. To disable it in production, set the property 'springdoc.api-docs.enabled=false'
-2026-05-04T00:28:15.481+09:00  WARN 41912 --- [  restartedMain] o.s.core.events.SpringDocAppInitializer  : SpringDoc /swagger-ui.html endpoint is enabled by default. To disable it in production, set the property 'springdoc.swagger-ui.enabled=false'
-2026-05-04T00:28:22.236+09:00  INFO 41912 --- [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
-2026-05-04T00:28:22.236+09:00  INFO 41912 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
-2026-05-04T00:28:22.237+09:00  INFO 41912 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
-Hibernate: 
-    select
-        u1_0.id 
-    from
-        users u1_0 
-    where
-        u1_0.encrypted_email=? 
-    limit
-        ?
-Hibernate: 
-    insert 
-    into
-        users
-        (encrypted_email, password, role) 
-    values
-        (?, ?, ?)
-Hibernate: 
-    insert 
-    into
-        user_profiles
-        (activity_level, birth_date, gender, height, target_period, target_weight, user_id, weight) 
-    values
-        (?, ?, ?, ?, ?, ?, ?, ?)
-Hibernate: 
-    select
-        u1_0.id,
-        u1_0.encrypted_email,
-        u1_0.password,
-        u1_0.role 
-    from
-        users u1_0 
-    where
-        u1_0.encrypted_email=?
-Hibernate: 
-    select
-        u1_0.id 
-    from
-        users u1_0 
-    where
-        u1_0.encrypted_email=? 
-    limit
-        ?
-Hibernate: 
-    insert 
-    into
-        users
-        (encrypted_email, password, role) 
-    values
-        (?, ?, ?)
-Hibernate: 
-    insert 
-    into
-        user_profiles
-        (activity_level, birth_date, gender, height, target_period, target_weight, user_id, weight) 
-    values
-        (?, ?, ?, ?, ?, ?, ?, ?)
+
+BUILD SUCCESSFUL in 7s
+4 actionable tasks: 4 executed

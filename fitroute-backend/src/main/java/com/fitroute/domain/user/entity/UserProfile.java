@@ -2,24 +2,12 @@
 package com.fitroute.domain.user.entity;
 
 import com.fitroute.global.enums.ActivityLevel;
+import com.fitroute.global.enums.DietStyle;
+import com.fitroute.global.enums.ExerciseExperience;
 import com.fitroute.global.enums.Gender;
-import org.hibernate.annotations.ColumnDefault;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-
+import com.fitroute.global.enums.GoalType;
+import jakarta.persistence.*;
+import lombok.*;
 import java.time.LocalDate;
 
 @Entity
@@ -52,19 +40,34 @@ public class UserProfile {
     @Column(nullable = false)
     private Gender gender;
 
-    @Column(name = "birth_date")
-    @ColumnDefault("'1900-01-01'")
+    @Column(name = "birth_date", nullable = false)
     private LocalDate birthDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ActivityLevel activityLevel;
 
+    // 추가된 필드
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private GoalType goalType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ExerciseExperience exerciseExperience;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private DietStyle dietStyle;
+
     @Builder
     public UserProfile(User user, Float height, Float weight,
             Float targetWeight, Integer targetPeriod,
             Gender gender, LocalDate birthDate,
-            ActivityLevel activityLevel) {
+            ActivityLevel activityLevel,
+            GoalType goalType,
+            ExerciseExperience exerciseExperience,
+            DietStyle dietStyle) {
         this.user = user;
         this.height = height;
         this.weight = weight;
@@ -73,5 +76,8 @@ public class UserProfile {
         this.gender = gender;
         this.birthDate = birthDate;
         this.activityLevel = activityLevel;
+        this.goalType = goalType;
+        this.exerciseExperience = exerciseExperience;
+        this.dietStyle = dietStyle;
     }
 }

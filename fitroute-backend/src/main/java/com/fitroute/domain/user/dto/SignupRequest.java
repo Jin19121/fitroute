@@ -2,15 +2,13 @@
 package com.fitroute.domain.user.dto;
 
 import com.fitroute.global.enums.ActivityLevel;
+import com.fitroute.global.enums.DietStyle;
+import com.fitroute.global.enums.ExerciseExperience;
 import com.fitroute.global.enums.Gender;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Past;
-import jakarta.validation.constraints.Size;
+import com.fitroute.global.enums.GoalType;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
 import java.time.LocalDate;
 
 @Getter
@@ -46,4 +44,14 @@ public class SignupRequest {
 
     @NotNull(message = "활동 수준은 필수입니다.")
     private ActivityLevel activityLevel;
+
+    // 추가된 필드
+    @NotNull(message = "목표 유형은 필수입니다.")
+    private GoalType goalType;
+
+    @NotNull(message = "운동 경험은 필수입니다.")
+    private ExerciseExperience exerciseExperience;
+
+    @NotNull(message = "식단 스타일은 필수입니다.")
+    private DietStyle dietStyle;
 }

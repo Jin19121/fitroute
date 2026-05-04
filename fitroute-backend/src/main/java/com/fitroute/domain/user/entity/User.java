@@ -2,14 +2,7 @@
 package com.fitroute.domain.user.entity;
 
 import com.fitroute.global.enums.UserRole;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -34,6 +27,11 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole role;
+
+    // 이 부분이 추가되어야 user.getProfile()이 작동합니다.
+    // mappedBy는 UserProfile 엔티티에 정의된 User 필드명("user")과 일치해야 합니다.
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private UserProfile profile;
 
     @Builder
     public User(String encryptedEmail, String password, UserRole role) {

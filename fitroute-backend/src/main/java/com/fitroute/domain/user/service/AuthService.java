@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.concurrent.TimeUnit;
+import com.fitroute.domain.user.event.UserSignedUpEvent;
+import org.springframework.context.ApplicationEventPublisher;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +31,7 @@ public class AuthService {
     private final Aes256Util aes256Util;
     private final JwtProvider jwtProvider;
     private final RedisTemplate<String, String> redisTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void signup(SignupRequest req) {
@@ -39,9 +42,9 @@ public class AuthService {
         }
 
         User user = userRepository.save(User.builder()
-                .encryptedEmail(encryptedEmail) // email → encryptedEmail
+                .encryptedEmail(encryptedEmail)
                 .password(passwordEncoder.encode(req.getPassword()))
-                .role(UserRole.USER) // role 추가 (import도 필요)
+                .role(UserRole.USER)
                 .build());
 
         userProfileRepository.save(UserProfile.builder()
@@ -50,10 +53,16 @@ public class AuthService {
                 .weight(req.getWeight())
                 .targetWeight(req.getTargetWeight())
                 .targetPeriod(req.getTargetPeriod())
-                .gender(req.getGender()) // 신규
-                .birthDate(req.getBirthDate()) // 신규
-                .activityLevel(req.getActivityLevel()) // 신규
+                .gender(req.getGender())
+                .birthDate(req.getBirthDate())
+                .activityLevel(req.getActivityLevel())
+                .goalType(req.getGoalType())
+                .exerciseExperience(req.getExerciseExperience())
+                .dietStyle(req.getDietStyle())
                 .build());
+
+        // 이벤트 발행 → PlanGenerationService 비동기 실행
+        eventPublisher.publishEvent(new UserSignedUpEvent(user.getId()));
     }
 
     @Transactional
