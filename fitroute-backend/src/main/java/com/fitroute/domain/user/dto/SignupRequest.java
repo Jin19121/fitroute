@@ -1,11 +1,7 @@
 // domain/user/dto/SignupRequest.java
 package com.fitroute.domain.user.dto;
 
-import com.fitroute.global.enums.ActivityLevel;
-import com.fitroute.global.enums.DietStyle;
-import com.fitroute.global.enums.ExerciseExperience;
-import com.fitroute.global.enums.Gender;
-import com.fitroute.global.enums.GoalType;
+import com.fitroute.global.enums.*;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

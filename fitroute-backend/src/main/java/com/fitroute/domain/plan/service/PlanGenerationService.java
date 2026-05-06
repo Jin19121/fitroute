@@ -39,10 +39,17 @@ public class PlanGenerationService {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleUserSignedUp(UserSignedUpEvent event) {
-        Long userId = event.userId();
-        log.info("[PlanGeneration] Start - userId={}", userId);
+        doGenerate(event.userId());
+    }
 
-        // 1. 초기 상태(GENERATING)로 플랜 생성 및 저장
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void generateForUser(Long userId) {
+        doGenerate(userId);
+    }
+
+    private void doGenerate(Long userId) {
+        log.info("[PlanGeneration] Start - userId={}", userId);
         Plan plan = Plan.createGenerating(userId);
         planRepository.save(plan);
 
@@ -51,20 +58,14 @@ public class PlanGenerationService {
                     .orElseThrow(() -> new IllegalStateException(
                             "UserProfile not found for userId=" + userId));
 
-            // 2. AI 지시사항(System Instruction)과 사용자 데이터(User Prompt) 분리
-            // 팁: promptBuilder에서 이 두 가지를 각각 생성하도록 설계하는 것이 좋습니다.
             String systemInstruction = promptBuilder.getPlanSystemInstruction();
             String userPrompt = promptBuilder.buildInitialPlanPrompt(profile);
-
-            // 3. Gemini 호출 (인자 2개 전달로 컴파일 에러 해결)
             String rawResponse = geminiClient.call(systemInstruction, userPrompt);
 
-            // 4. 응답 파싱
             String planJson = responseParser.extractText(rawResponse);
             int dailyCalories = responseParser.parseDailyCalories(planJson);
             List<PlanItem> items = responseParser.parsePlanItems(planJson, plan);
 
-            // 5. 결과 저장 및 상태 완료 변경
             planItemRepository.saveAll(items);
             plan.complete(dailyCalories, planJson);
 
@@ -72,10 +73,10 @@ public class PlanGenerationService {
                     userId, plan.getId(), dailyCalories);
 
         } catch (Exception e) {
-            String errorMessage = extractMeaningfulMessage(e);
+            String msg = extractMeaningfulMessage(e);
             log.error("[PlanGeneration] Failed - userId={}, planId={}, error={}",
-                    userId, plan.getId(), errorMessage, e);
-            plan.fail(errorMessage);
+                    userId, plan.getId(), msg, e);
+            plan.fail(msg);
         }
     }
 

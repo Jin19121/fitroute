@@ -2,8 +2,10 @@
 package com.fitroute.domain.user.service;
 
 import com.fitroute.domain.user.dto.*;
-import com.fitroute.domain.user.entity.*; // User, UserProfile 포함
-import com.fitroute.domain.user.repository.*;
+import com.fitroute.domain.user.entity.User;
+import com.fitroute.domain.user.entity.UserProfile;
+import com.fitroute.domain.user.repository.UserRepository;
+import com.fitroute.domain.user.repository.UserProfileRepository;
 import com.fitroute.global.enums.UserRole;
 import com.fitroute.global.exception.ErrorCode;
 import com.fitroute.global.jwt.JwtProvider;
@@ -15,8 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.concurrent.TimeUnit;
-import com.fitroute.domain.user.event.UserSignedUpEvent;
-import org.springframework.context.ApplicationEventPublisher;
 
 @Service
 @RequiredArgsConstructor
@@ -31,10 +31,13 @@ public class AuthService {
     private final Aes256Util aes256Util;
     private final JwtProvider jwtProvider;
     private final RedisTemplate<String, String> redisTemplate;
-    private final ApplicationEventPublisher eventPublisher;
 
+    /**
+     * 회원가입: User + UserProfile 저장 후 토큰 반환.
+     * 실패(중복 이메일 등) 시 예외를 던져 컨트롤러에서 처리.
+     */
     @Transactional
-    public void signup(SignupRequest req) {
+    public SignupResponse signup(SignupRequest req) {
         String encryptedEmail = aes256Util.encrypt(req.getEmail());
 
         if (userRepository.existsByEncryptedEmail(encryptedEmail)) {
@@ -61,8 +64,16 @@ public class AuthService {
                 .dietStyle(req.getDietStyle())
                 .build());
 
-        // 이벤트 발행 → PlanGenerationService 비동기 실행
-        eventPublisher.publishEvent(new UserSignedUpEvent(user.getId()));
+        String accessToken = jwtProvider.createAccessToken(user.getId());
+        String refreshToken = jwtProvider.createRefreshToken(user.getId());
+
+        redisTemplate.opsForValue().set(
+                REFRESH_TOKEN_PREFIX + user.getId(),
+                refreshToken,
+                jwtProvider.getRefreshTokenValidMs(),
+                TimeUnit.MILLISECONDS);
+
+        return new SignupResponse(accessToken, refreshToken);
     }
 
     @Transactional
@@ -76,51 +87,42 @@ public class AuthService {
             throw new IllegalArgumentException(ErrorCode.INVALID_PASSWORD.getMessage());
         }
 
-        String accessToken  = jwtProvider.createAccessToken(user.getId());
+        String accessToken = jwtProvider.createAccessToken(user.getId());
         String refreshToken = jwtProvider.createRefreshToken(user.getId());
 
-        // Redis에 Refresh Token 저장 (TTL = 7일)
         redisTemplate.opsForValue().set(
                 REFRESH_TOKEN_PREFIX + user.getId(),
                 refreshToken,
                 jwtProvider.getRefreshTokenValidMs(),
-                TimeUnit.MILLISECONDS
-        );
+                TimeUnit.MILLISECONDS);
 
         return new TokenResponse(accessToken, refreshToken);
     }
 
-    // Access Token 재발급
     public TokenResponse refresh(RefreshRequest req) {
         String refreshToken = req.getRefreshToken();
-
-        // 1. Refresh Token 자체 유효성 검사
         jwtProvider.validate(refreshToken);
 
         Long userId = jwtProvider.getUserId(refreshToken);
         String redisKey = REFRESH_TOKEN_PREFIX + userId;
 
-        // 2. Redis에 저장된 RT와 비교
         String storedToken = redisTemplate.opsForValue().get(redisKey);
         if (storedToken == null || !storedToken.equals(refreshToken)) {
             throw new IllegalArgumentException(ErrorCode.REFRESH_TOKEN_MISMATCH.getMessage());
         }
 
-        // 3. 새 토큰 발급 및 Redis 갱신 (Refresh Token Rotation)
-        String newAccessToken  = jwtProvider.createAccessToken(userId);
+        String newAccessToken = jwtProvider.createAccessToken(userId);
         String newRefreshToken = jwtProvider.createRefreshToken(userId);
 
         redisTemplate.opsForValue().set(
                 redisKey,
                 newRefreshToken,
                 jwtProvider.getRefreshTokenValidMs(),
-                TimeUnit.MILLISECONDS
-        );
+                TimeUnit.MILLISECONDS);
 
         return new TokenResponse(newAccessToken, newRefreshToken);
     }
 
-    // 로그아웃: Redis에서 RT 삭제
     @Transactional
     public void logout(Long userId) {
         redisTemplate.delete(REFRESH_TOKEN_PREFIX + userId);

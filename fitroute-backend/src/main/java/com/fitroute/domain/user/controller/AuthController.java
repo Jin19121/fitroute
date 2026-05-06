@@ -17,10 +17,14 @@ public class AuthController {
 
     private final AuthService authService;
 
+    /**
+     * 회원가입
+     * 성공: 201 + { accessToken, refreshToken }
+     * 실패(중복 이메일 등): GlobalExceptionHandler 에서 400/409 처리
+     */
     @PostMapping("/signup")
-    public ResponseEntity<Void> signup(@RequestBody @Valid SignupRequest req) {
-        authService.signup(req);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+    public ResponseEntity<SignupResponse> signup(@RequestBody @Valid SignupRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.signup(req));
     }
 
     @PostMapping("/login")
@@ -33,7 +37,6 @@ public class AuthController {
         return ResponseEntity.ok(authService.refresh(req));
     }
 
-    // 인증 필요 → SecurityContext에서 userId 꺼냄
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@AuthenticationPrincipal Long userId) {
         authService.logout(userId);
