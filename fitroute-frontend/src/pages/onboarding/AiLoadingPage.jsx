@@ -4,49 +4,65 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api/axios';
 
 const STEPS = [
-    { label: '사용자 데이터 분석 중...', duration: 1800 },
-    { label: '식단 계획 생성 중...', duration: 2200 },
-    { label: '운동 계획 생성 중...', duration: 2000 },
-    { label: '대시보드 준비 중...', duration: 1000 },
+    { label: '사용자 데이터 분석', duration: 1800 },
+    { label: '식단 계획 생성', duration: 2200 },
+    { label: '운동 계획 생성', duration: 2000 },
+    { label: '대시보드 준비', duration: 1000 },
 ];
 
 const AiLoadingPage = () => {
     const navigate = useNavigate();
     const [currentStep, setCurrentStep] = useState(0);
     const [progress, setProgress] = useState(0);
+    const [failed, setFailed] = useState(false);
+
     const timerRef = useRef(null);
     const progressRef = useRef(null);
-    const calledRef = useRef(false); // ← StrictMode 이중 호출 방지
+    const calledRef = useRef(false); // StrictMode 이중 호출 방지
 
+    /* ── API 호출 ─────────────────────────────────────────── */
     useEffect(() => {
-        if (calledRef.current) return; // 이미 호출됨 → skip
+        if (calledRef.current) return;
         calledRef.current = true;
 
         const generatePlan = async () => {
             try {
                 await apiClient.post('/api/plans/today/generate');
+
                 clearInterval(progressRef.current);
                 setProgress(100);
                 setCurrentStep(STEPS.length);
+
                 setTimeout(() => navigate('/dashboard', { replace: true }), 500);
-            } catch (e) {
-                console.error('[AiLoading] 플랜 생성 실패:', e?.response?.status, e?.message);
-                navigate('/dashboard?planStatus=NO_PLAN', { replace: true });
+            } catch (err) {
+                const status = err?.response?.status;
+                console.error('[AiLoading] 플랜 생성 실패:', status, err?.message);
+
+                if (status === 401) {
+                    // 토큰 만료 → 로그인 재시도
+                    navigate('/login', { replace: true });
+                    return;
+                }
+                // 그 외 에러 → 실패 UI 표시
+                setFailed(true);
+                clearInterval(progressRef.current);
             }
         };
 
         generatePlan();
     }, [navigate]);
 
+    /* ── 진행 바 & 스텝 애니메이션 ────────────────────────── */
     useEffect(() => {
-        let stepIndex = 0;
-        const advance = () => {
-            if (stepIndex >= STEPS.length) return;
-            setCurrentStep(stepIndex);
+        let stepIdx = 0;
+
+        const advanceStep = () => {
+            if (stepIdx >= STEPS.length) return;
+            setCurrentStep(stepIdx);
             timerRef.current = setTimeout(() => {
-                stepIndex++;
-                advance();
-            }, STEPS[stepIndex]?.duration ?? 1500);
+                stepIdx++;
+                advanceStep();
+            }, STEPS[stepIdx]?.duration ?? 1500);
         };
 
         let pct = 0;
@@ -55,7 +71,7 @@ const AiLoadingPage = () => {
             setProgress(pct);
         }, 60);
 
-        advance();
+        advanceStep();
 
         return () => {
             clearTimeout(timerRef.current);
@@ -63,8 +79,37 @@ const AiLoadingPage = () => {
         };
     }, []);
 
+    /* ── 실패 UI ──────────────────────────────────────────── */
+    if (failed) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-[#1A1A1A] px-6 gap-6">
+                <div className="text-center">
+                    <div className="w-14 h-14 bg-red-500/20 rounded-[20px] mx-auto mb-4 flex items-center justify-center">
+                        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                            <path d="M14 8v8M14 20h.01" stroke="#EF4444"
+                                strokeWidth="2.5" strokeLinecap="round" />
+                            <circle cx="14" cy="14" r="12"
+                                stroke="#EF4444" strokeWidth="2" />
+                        </svg>
+                    </div>
+                    <h2 className="text-[16px] font-bold text-white mb-1">플랜 생성에 실패했어요</h2>
+                    <p className="text-[12px] text-[#555] mb-6">잠시 후 다시 시도해 주세요</p>
+                    <button
+                        onClick={() => { calledRef.current = false; setFailed(false); setProgress(0); }}
+                        className="px-6 py-2.5 bg-[#4A7BFF] text-white text-[13px] font-semibold rounded-xl"
+                    >
+                        다시 시도
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    /* ── 정상 UI ──────────────────────────────────────────── */
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-[#1A1A1A] px-6 gap-8">
+
+            {/* 헤더 */}
             <div className="text-center">
                 <div className="w-16 h-16 bg-[#4A7BFF] rounded-[20px] mx-auto mb-4 flex items-center justify-center shadow-xl shadow-[#4A7BFF]/40">
                     <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -77,6 +122,7 @@ const AiLoadingPage = () => {
                 <p className="text-[12px] text-[#555]">AI가 오늘 하루 맞춤 플랜을 만들고 있어요</p>
             </div>
 
+            {/* 스텝 목록 */}
             <div className="w-full bg-white/5 rounded-[16px] p-4 flex flex-col gap-3">
                 {STEPS.map((s, i) => {
                     const isDone = i < currentStep;
@@ -91,8 +137,8 @@ const AiLoadingPage = () => {
                             ].join(' ')}>
                                 {isDone && (
                                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                                        <path d="M1.5 5L4 7.5L8.5 2" stroke="white"
-                                            strokeWidth="1.5" strokeLinecap="round" />
+                                        <path d="M1.5 5L4 7.5L8.5 2"
+                                            stroke="white" strokeWidth="1.5" strokeLinecap="round" />
                                     </svg>
                                 )}
                                 {isNow && (
@@ -105,19 +151,24 @@ const AiLoadingPage = () => {
                                     : isNow ? 'text-[#888]'
                                         : 'text-[#333]',
                             ].join(' ')}>
-                                {isDone ? s.label.replace('중...', '완료') : s.label}
+                                {isDone ? `${s.label} 완료` : `${s.label} 중...`}
                             </span>
                         </div>
                     );
                 })}
             </div>
 
+            {/* 진행 바 */}
             <div className="w-full">
                 <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                    <div className="h-full bg-[#4A7BFF] rounded-full transition-all duration-300 ease-out"
-                        style={{ width: `${progress}%` }} />
+                    <div
+                        className="h-full bg-[#4A7BFF] rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${progress}%` }}
+                    />
                 </div>
-                <p className="text-[10px] text-[#444] text-right mt-1">{Math.round(progress)}%</p>
+                <p className="text-[10px] text-[#444] text-right mt-1">
+                    {Math.round(progress)}%
+                </p>
             </div>
         </div>
     );

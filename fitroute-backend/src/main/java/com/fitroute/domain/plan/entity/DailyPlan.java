@@ -29,15 +29,15 @@ public class DailyPlan {
     @Column(nullable = false)
     private PlanStatus status = PlanStatus.PENDING;
 
-    @Column(name = "calorie_target", nullable = false)
+    @Column(name = "calorie_target")
     private Integer calorieTarget;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "meal_plan", columnDefinition = "json", nullable = false)
+    @Column(name = "meal_plan", columnDefinition = "json")
     private Map<String, Object> mealPlan;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "workout_plan", columnDefinition = "json", nullable = false)
+    @Column(name = "workout_plan", columnDefinition = "json")
     private Map<String, Object> workoutPlan;
 
     @JdbcTypeCode(SqlTypes.JSON)
@@ -48,19 +48,29 @@ public class DailyPlan {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     public enum PlanStatus {
-        PENDING, ACTIVE, COMPLETED, SKIPPED
+        PENDING, GENERATING, ACTIVE, COMPLETED, SKIPPED, FAILED // GENERATING, FAILED 추가
     }
 
     @Builder
-    public DailyPlan(Long userId, LocalDate planDate, Integer calorieTarget,
-            Map<String, Object> mealPlan, Map<String, Object> workoutPlan,
-            Map<String, Object> aiMeta) {
+    public DailyPlan(Long userId, LocalDate planDate) {
         this.userId = userId;
         this.planDate = planDate;
+        this.status = PlanStatus.GENERATING; // 생성 시작 시점에 GENERATING
+    }
+
+    // 상태 전환 메서드
+    public void complete(Integer calorieTarget,
+            Map<String, Object> mealPlan,
+            Map<String, Object> workoutPlan,
+            Map<String, Object> aiMeta) {
+        this.status = PlanStatus.ACTIVE;
         this.calorieTarget = calorieTarget;
         this.mealPlan = mealPlan;
         this.workoutPlan = workoutPlan;
         this.aiMeta = aiMeta;
-        this.status = PlanStatus.ACTIVE;
+    }
+
+    public void fail() {
+        this.status = PlanStatus.FAILED;
     }
 }

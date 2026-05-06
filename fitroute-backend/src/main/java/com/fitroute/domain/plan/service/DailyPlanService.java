@@ -1,20 +1,25 @@
+//src/main/java/com/fitroute/domain/plan/service/DailyPlanService.java
 package com.fitroute.domain.plan.service;
 
 import com.fitroute.domain.plan.dto.DailyPlanResponse;
 import com.fitroute.domain.plan.entity.DailyPlan;
+import com.fitroute.domain.plan.entity.PlanItem;
 import com.fitroute.domain.plan.repository.DailyPlanRepository;
+import com.fitroute.domain.plan.repository.PlanItemRepository;
 import com.fitroute.domain.user.entity.UserProfile;
 import com.fitroute.domain.user.repository.UserProfileRepository;
+import com.fitroute.global.enums.PlanItemCategory;
+import com.fitroute.global.enums.PlanItemStatus;
+import com.fitroute.global.enums.PlanItemType;
 import com.fitroute.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -23,59 +28,209 @@ import java.util.Optional;
 public class DailyPlanService {
 
     private final DailyPlanRepository dailyPlanRepository;
+    private final PlanItemRepository planItemRepository;
     private final UserProfileRepository userProfileRepository;
     private final AiPlanService aiPlanService;
 
-    // DailyPlanService.java — generateTodayPlan 메서드만 교체
+    // ─────────────────────────────────────────────
+    // 오늘 플랜 생성
+    // ─────────────────────────────────────────────
     @Transactional
     public DailyPlanResponse generateTodayPlan(Long userId) {
+
         LocalDate today = LocalDate.now();
 
-        // 이미 있으면 바로 반환
+        // 1. 이미 존재하면 반환
         Optional<DailyPlan> existing = dailyPlanRepository.findByUserIdAndPlanDate(userId, today);
+
         if (existing.isPresent()) {
+            log.info("[DailyPlan] Already exists - userId={}, date={}", userId, today);
             return DailyPlanResponse.from(existing.get());
         }
 
+        // 2. 사용자 프로필 조회
         UserProfile profile = userProfileRepository.findByUserId(userId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        ErrorCode.PROFILE_NOT_FOUND.getMessage()));
+                .orElseThrow(() -> new IllegalArgumentException(ErrorCode.PROFILE_NOT_FOUND.getMessage()));
 
+        // 3. 목표 칼로리 계산
         int calorieTarget = calculateCalorieTarget(profile);
+
+        // 4. AI 호출
         Map<String, Object> aiResult = aiPlanService.generateDailyPlan(profile, calorieTarget);
 
         Map<String, Object> mealPlan = extractMap(aiResult, "meal_plan");
         Map<String, Object> workoutPlan = extractMap(aiResult, "workout_plan");
 
+        // 5. DailyPlan 생성 (Builder 최소화)
         DailyPlan plan = DailyPlan.builder()
                 .userId(userId)
                 .planDate(today)
-                .calorieTarget(calorieTarget)
-                .mealPlan(mealPlan)
-                .workoutPlan(workoutPlan)
-                .aiMeta(Map.of("model", "gemini-2.5-flash-lite",
-                        "generated_at", today.toString()))
                 .build();
 
+        // 6. AI 결과 반영 (핵심)
+        plan.complete(
+                calorieTarget,
+                mealPlan,
+                workoutPlan,
+                Map.of(
+                        "model", "gemini-2.5-flash-lite",
+                        "generated_at", today.toString()));
+
         try {
+            // 7. 저장
             DailyPlan saved = dailyPlanRepository.save(plan);
-            log.info("[DailyPlan] Generated - userId={}, date={}, kcal={}", userId, today, calorieTarget);
+
+            log.info("[DailyPlan] Generated - userId={}, date={}, kcal={}",
+                    userId, today, calorieTarget);
+
+            // 8. PlanItem 생성
+            savePlanItems(saved, mealPlan, workoutPlan, today);
+
             return DailyPlanResponse.from(saved);
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            // 동시 요청으로 race condition 발생 시 — 이미 저장된 레코드를 반환
-            log.warn("[DailyPlan] Race condition detected for userId={}, date={}. Returning existing.", userId, today);
+
+        } catch (DataIntegrityViolationException e) {
+            log.warn("[DailyPlan] Race condition - userId={}, date={}", userId, today);
+
             return dailyPlanRepository.findByUserIdAndPlanDate(userId, today)
                     .map(DailyPlanResponse::from)
                     .orElseThrow(() -> new IllegalStateException("플랜 저장 후 조회 실패"));
         }
     }
 
+    // ─────────────────────────────────────────────
+    // 오늘 플랜 조회
+    // ─────────────────────────────────────────────
     public DailyPlanResponse getTodayPlan(Long userId) {
-        return dailyPlanRepository.findByUserIdAndPlanDate(userId, LocalDate.now())
+        return dailyPlanRepository
+                .findByUserIdAndPlanDate(userId, LocalDate.now())
                 .map(DailyPlanResponse::from)
-                .orElse(DailyPlanResponse.builder()
-                        .status("NO_PLAN")
-                        .build());
+                .orElse(DailyPlanResponse.builder().status("NO_PLAN").build());
+    }
+
+    // ─────────────────────────────────────────────
+    // PlanItem 저장
+    // ─────────────────────────────────────────────
+    @SuppressWarnings("unchecked")
+    private void savePlanItems(DailyPlan dailyPlan,
+            Map<String, Object> mealPlan,
+            Map<String, Object> workoutPlan,
+            LocalDate date) {
+
+        List<PlanItem> items = new ArrayList<>();
+
+        // 식단
+        if (mealPlan != null) {
+            Object mealsObj = mealPlan.get("meals");
+
+            if (mealsObj instanceof List<?> meals) {
+                for (Object obj : meals) {
+                    if (!(obj instanceof Map))
+                        continue;
+
+                    Map<String, Object> meal = (Map<String, Object>) obj;
+
+                    String typeStr = String.valueOf(meal.getOrDefault("type", "SNACK"));
+                    String name = String.valueOf(meal.getOrDefault("name", "식사"));
+                    int kcal = toInt(meal.get("kcal"), 0);
+
+                    items.add(PlanItem.builder()
+                            .dailyPlan(dailyPlan)
+                            .date(date)
+                            .type(PlanItemType.MEAL)
+                            .category(parseMealCategory(typeStr))
+                            .foodName(name)
+                            .calories(kcal)
+                            .status(PlanItemStatus.PENDING)
+                            .build());
+                }
+            }
+        }
+
+        // 운동
+        if (workoutPlan != null) {
+            Object workoutsObj = workoutPlan.get("workouts");
+
+            if (workoutsObj instanceof List<?> workouts) {
+                for (Object obj : workouts) {
+                    if (!(obj instanceof Map))
+                        continue;
+
+                    Map<String, Object> workout = (Map<String, Object>) obj;
+
+                    String name = String.valueOf(workout.getOrDefault("name", "운동"));
+                    int kcalBurn = toInt(workout.get("kcal_burn"), 0);
+                    int durationMin = toInt(workout.get("duration_min"), 0);
+
+                    items.add(PlanItem.builder()
+                            .dailyPlan(dailyPlan)
+                            .date(date)
+                            .type(PlanItemType.WORKOUT)
+                            .category(parseWorkoutCategory(name))
+                            .exerciseName(name)
+                            .calories(kcalBurn)
+                            .durationMin(durationMin)
+                            .status(PlanItemStatus.PENDING)
+                            .build());
+                }
+            }
+        }
+
+        if (items.isEmpty()) {
+            log.warn("[PlanItem] 저장할 아이템 없음 - planId={}", dailyPlan.getId());
+            return;
+        }
+
+        planItemRepository.saveAll(items);
+        log.info("[PlanItem] {} items saved - planId={}", items.size(), dailyPlan.getId());
+    }
+
+    // ─────────────────────────────────────────────
+    // 헬퍼
+    // ─────────────────────────────────────────────
+    private PlanItemCategory parseMealCategory(String type) {
+        return switch (type.toUpperCase()) {
+            case "BREAKFAST" -> PlanItemCategory.BREAKFAST;
+            case "LUNCH" -> PlanItemCategory.LUNCH;
+            case "DINNER" -> PlanItemCategory.DINNER;
+            default -> PlanItemCategory.SNACK;
+        };
+    }
+
+    private PlanItemCategory parseWorkoutCategory(String name) {
+        if (name == null)
+            return PlanItemCategory.CHEST;
+
+        String lower = name.toLowerCase();
+
+        if (lower.contains("hiit") || lower.contains("러닝") || lower.contains("cardio"))
+            return PlanItemCategory.CARDIO;
+
+        if (lower.contains("코어") || lower.contains("core"))
+            return PlanItemCategory.CORE;
+
+        if (lower.contains("하체") || lower.contains("leg"))
+            return PlanItemCategory.LEGS;
+
+        if (lower.contains("등") || lower.contains("back"))
+            return PlanItemCategory.BACK;
+
+        if (lower.contains("어깨") || lower.contains("shoulder"))
+            return PlanItemCategory.SHOULDERS;
+
+        if (lower.contains("팔") || lower.contains("arm"))
+            return PlanItemCategory.ARMS;
+
+        return PlanItemCategory.CHEST;
+    }
+
+    private int toInt(Object value, int defaultVal) {
+        if (value == null)
+            return defaultVal;
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (Exception e) {
+            return defaultVal;
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -84,47 +239,39 @@ public class DailyPlanService {
         if (value instanceof Map<?, ?>) {
             return (Map<String, Object>) value;
         }
-        log.warn("[DailyPlan] AI 응답에서 '{}' 키를 찾을 수 없거나 타입 불일치. 빈 Map으로 대체.", key);
+        log.warn("[DailyPlan] '{}' 없음 → 빈 Map", key);
         return Collections.emptyMap();
     }
 
     private int calculateCalorieTarget(UserProfile profile) {
-        if (profile.getWeight() == null || profile.getHeight() == null) {
+
+        if (profile.getWeight() == null || profile.getHeight() == null)
             return 1500;
-        }
 
         int age = 30;
         if (profile.getBirthDate() != null) {
             age = LocalDate.now().getYear() - profile.getBirthDate().getYear();
         }
 
-        double bmr;
-        if (profile.getGender() != null && "MALE".equals(profile.getGender().name())) {
-            bmr = 10 * profile.getWeight() + 6.25 * profile.getHeight() - 5 * age + 5;
-        } else {
-            bmr = 10 * profile.getWeight() + 6.25 * profile.getHeight() - 5 * age - 161;
-        }
+        double bmr = ("MALE".equals(profile.getGender().name()))
+                ? 10 * profile.getWeight() + 6.25 * profile.getHeight() - 5 * age + 5
+                : 10 * profile.getWeight() + 6.25 * profile.getHeight() - 5 * age - 161;
 
-        double activityMultiplier = profile.getActivityLevel() != null
+        double activity = profile.getActivityLevel() != null
                 ? profile.getActivityLevel().getMultiplier()
                 : 1.375;
 
-        double tdee = bmr * activityMultiplier;
+        double tdee = bmr * activity;
 
-        double adjustment = 0.8;
-        if (profile.getGoalType() != null) {
-            adjustment = switch (profile.getGoalType().name()) {
-                case "WEIGHT_LOSS" -> 0.8;
-                case "MAINTENANCE" -> 1.0;
-                case "MUSCLE_GAIN" -> 1.1;
-                default -> {
-                    log.warn("[DailyPlan] 알 수 없는 goalType: {}. 기본값 0.8 적용.",
-                            profile.getGoalType().name());
-                    yield 0.8;
+        double adjust = profile.getGoalType() != null
+                ? switch (profile.getGoalType().name()) {
+                    case "WEIGHT_LOSS" -> 0.8;
+                    case "MAINTENANCE" -> 1.0;
+                    case "MUSCLE_GAIN" -> 1.1;
+                    default -> 0.8;
                 }
-            };
-        }
+                : 0.8;
 
-        return (int) Math.round(tdee * adjustment);
+        return (int) Math.round(tdee * adjust);
     }
 }

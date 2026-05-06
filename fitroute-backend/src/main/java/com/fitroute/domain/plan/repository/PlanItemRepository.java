@@ -1,3 +1,4 @@
+// src/main/java/com/fitroute/domain/plan/repository/PlanItemRepository.java
 package com.fitroute.domain.plan.repository;
 
 import com.fitroute.domain.plan.entity.PlanItem;
@@ -11,23 +12,50 @@ import java.util.List;
 
 public interface PlanItemRepository extends JpaRepository<PlanItem, Long> {
 
-    List<PlanItem> findByPlanId(Long planId);
+        // ★ plan → dailyPlan 으로 수정
+        List<PlanItem> findByDailyPlanId(Long dailyPlanId);
 
-    @Query("SELECT pi FROM PlanItem pi WHERE pi.plan.id = :planId AND pi.date = :date ORDER BY pi.type, pi.category")
-    List<PlanItem> findByPlanIdAndDate(@Param("planId") Long planId, @Param("date") LocalDate date);
+        @Query("""
+                        SELECT pi FROM PlanItem pi
+                        WHERE pi.dailyPlan.id = :planId
+                          AND pi.date = :date
+                        ORDER BY pi.type, pi.category
+                        """)
+        List<PlanItem> findByPlanIdAndDate(
+                        @Param("planId") Long planId,
+                        @Param("date") LocalDate date);
 
-    @Query("SELECT pi FROM PlanItem pi WHERE pi.plan.id = :planId AND pi.date = :date AND pi.type = :type")
-    List<PlanItem> findByPlanIdAndDateAndType(
-            @Param("planId") Long planId,
-            @Param("date") LocalDate date,
-            @Param("type") PlanItemType type);
+        @Query("""
+                        SELECT pi FROM PlanItem pi
+                        WHERE pi.dailyPlan.id = :planId
+                          AND pi.date = :date
+                          AND pi.type = :type
+                        """)
+        List<PlanItem> findByPlanIdAndDateAndType(
+                        @Param("planId") Long planId,
+                        @Param("date") LocalDate date,
+                        @Param("type") PlanItemType type);
 
-    // 주간 달성률 계산용 (완료된 아이템 / 전체)
-    @Query("SELECT COUNT(pi) FROM PlanItem pi WHERE pi.plan.id = :planId AND pi.date BETWEEN :start AND :end AND pi.status = 'COMPLETED'")
-    long countCompletedByPlanIdAndDateBetween(@Param("planId") Long planId, @Param("start") LocalDate start,
-            @Param("end") LocalDate end);
+        // 주간 달성률 계산
+        @Query("""
+                        SELECT COUNT(pi) FROM PlanItem pi
+                        WHERE pi.dailyPlan.id = :planId
+                          AND pi.date BETWEEN :start AND :end
+                          AND pi.status = 'COMPLETED'
+                        """)
+        long countCompletedByPlanIdAndDateBetween(
+                        @Param("planId") Long planId,
+                        @Param("start") LocalDate start,
+                        @Param("end") LocalDate end);
 
-    @Query("SELECT COUNT(pi) FROM PlanItem pi WHERE pi.plan.id = :planId AND pi.date BETWEEN :start AND :end AND pi.status != 'SKIPPED'")
-    long countActiveByPlanIdAndDateBetween(@Param("planId") Long planId, @Param("start") LocalDate start,
-            @Param("end") LocalDate end);
+        @Query("""
+                        SELECT COUNT(pi) FROM PlanItem pi
+                        WHERE pi.dailyPlan.id = :planId
+                          AND pi.date BETWEEN :start AND :end
+                          AND pi.status <> 'SKIPPED'
+                        """)
+        long countActiveByPlanIdAndDateBetween(
+                        @Param("planId") Long planId,
+                        @Param("start") LocalDate start,
+                        @Param("end") LocalDate end);
 }
