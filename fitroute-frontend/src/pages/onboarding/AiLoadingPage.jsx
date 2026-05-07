@@ -1,7 +1,7 @@
 // src/pages/onboarding/AiLoadingPage.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../../api/axios';
+import api from '../../api/client';
 
 const STEPS = [
     { label: '사용자 데이터 분석', duration: 1800 },
@@ -18,16 +18,15 @@ const AiLoadingPage = () => {
 
     const timerRef = useRef(null);
     const progressRef = useRef(null);
-    const calledRef = useRef(false); // StrictMode 이중 호출 방지
+    const calledRef = useRef(false);
 
-    /* ── API 호출 ─────────────────────────────────────────── */
     useEffect(() => {
         if (calledRef.current) return;
         calledRef.current = true;
 
         const generatePlan = async () => {
             try {
-                await apiClient.post('/api/plans/today/generate');
+                await api.post('/plans/today/generate', {}, { timeout: 120000 });
 
                 clearInterval(progressRef.current);
                 setProgress(100);
@@ -39,11 +38,9 @@ const AiLoadingPage = () => {
                 console.error('[AiLoading] 플랜 생성 실패:', status, err?.message);
 
                 if (status === 401) {
-                    // 토큰 만료 → 로그인 재시도
                     navigate('/login', { replace: true });
                     return;
                 }
-                // 그 외 에러 → 실패 UI 표시
                 setFailed(true);
                 clearInterval(progressRef.current);
             }
@@ -52,7 +49,6 @@ const AiLoadingPage = () => {
         generatePlan();
     }, [navigate]);
 
-    /* ── 진행 바 & 스텝 애니메이션 ────────────────────────── */
     useEffect(() => {
         let stepIdx = 0;
 
@@ -79,7 +75,6 @@ const AiLoadingPage = () => {
         };
     }, []);
 
-    /* ── 실패 UI ──────────────────────────────────────────── */
     if (failed) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-[#1A1A1A] px-6 gap-6">
@@ -105,11 +100,8 @@ const AiLoadingPage = () => {
         );
     }
 
-    /* ── 정상 UI ──────────────────────────────────────────── */
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-[#1A1A1A] px-6 gap-8">
-
-            {/* 헤더 */}
             <div className="text-center">
                 <div className="w-16 h-16 bg-[#4A7BFF] rounded-[20px] mx-auto mb-4 flex items-center justify-center shadow-xl shadow-[#4A7BFF]/40">
                     <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -122,7 +114,6 @@ const AiLoadingPage = () => {
                 <p className="text-[12px] text-[#555]">AI가 오늘 하루 맞춤 플랜을 만들고 있어요</p>
             </div>
 
-            {/* 스텝 목록 */}
             <div className="w-full bg-white/5 rounded-[16px] p-4 flex flex-col gap-3">
                 {STEPS.map((s, i) => {
                     const isDone = i < currentStep;
@@ -158,7 +149,6 @@ const AiLoadingPage = () => {
                 })}
             </div>
 
-            {/* 진행 바 */}
             <div className="w-full">
                 <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
                     <div

@@ -2,8 +2,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useOnboardingStore from '../../store/onboardingStore';
-import { signupApi } from '../../api/auth';
-import { tokenStorage } from '../../api/axios';
 
 const GOAL_OPTIONS = [
     { label: '체중 감량', value: 'WEIGHT_LOSS' },
@@ -56,7 +54,9 @@ const ChipGroup = ({ label, options, value, onChange, required }) => (
 
 export default function AiSetupPage() {
     const navigate = useNavigate();
-    const { profile, credentials } = useOnboardingStore();
+
+    // ✅ 컴포넌트 안에서 호출
+    const { signupAndLogin } = useOnboardingStore();
 
     const [goalType, setGoalType] = useState(null);
     const [activityLevel, setActivityLevel] = useState(null);
@@ -73,22 +73,18 @@ export default function AiSetupPage() {
         setError(null);
 
         try {
-            const { accessToken, refreshToken } = await signupApi({
-                ...credentials,
-                ...profile,
+            // ✅ store의 signupAndLogin이 signup + login + 토큰저장 모두 처리
+            await signupAndLogin({
                 goalType,
                 activityLevel,
                 exerciseExperience,
                 dietStyle,
             });
-            tokenStorage.setTokens(accessToken, refreshToken);
             navigate('/onboarding/ai-loading', { replace: true });
 
         } catch (e) {
             const message = e.response?.data?.message || '회원가입 중 오류가 발생했습니다.';
             setError(message);
-
-            // users 또는 user_profiles 저장 실패 → 회원가입 첫 페이지로
             setTimeout(() => {
                 navigate('/onboarding/signup', { replace: true });
             }, 2000);
@@ -105,7 +101,6 @@ export default function AiSetupPage() {
                 <p className="text-[11px] text-[#B8B4AE] mt-1">더 정확한 추천을 위해 알려주세요</p>
             </div>
 
-            {/* 가입 실패 메시지 */}
             {error && (
                 <p className="text-[11px] text-red-500 text-center bg-red-50 rounded-lg py-2 px-3">
                     {error}
