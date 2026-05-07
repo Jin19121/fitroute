@@ -1,32 +1,14 @@
 // src/pages/dashboard/DashboardPage.jsx
-// 변경점: PlanItemActionSheet 연동 + onApply → PATCH /api/plans/items/{id}/action
-
 import { useState, useEffect, useCallback, useRef } from "react";
+import apiClient from "../../api/axios";
 import PlanItemActionSheet from "../../components/PlanItemActionSheet";
 
 // ─── API 계층 ─────────────────────────────────────
-const API_BASE = "/api";
-const authHeader = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("accessToken") ?? ""}`,
-});
-
 const fetchDashboard = () =>
-    fetch(`${API_BASE}/dashboard/today`, { headers: authHeader() }).then((r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        return r.json();
-    });
+    apiClient.get('/api/dashboard/today').then(r => r.data);
 
-/**
- * 완수 / 미실행 / 수정 / 되돌리기 통합 액션 엔드포인트
- * payload: { status, modifiedName?, modifiedCalories?, ... }
- */
 const applyItemAction = (itemId, payload) =>
-    fetch(`${API_BASE}/plans/items/${itemId}/action`, {
-        method: "PATCH",
-        headers: authHeader(),
-        body: JSON.stringify(payload),
-    }).then((r) => { if (!r.ok) throw new Error(`${r.status}`); });
+    apiClient.patch(`/api/plans/items/${itemId}/action`, payload);
 
 // ─── 낙관적 업데이트 헬퍼 ──────────────────────────
 function applyOptimistic(prev, itemId, payload) {
@@ -63,7 +45,6 @@ function applyOptimistic(prev, itemId, payload) {
     const meals = patch(prev.today.meals);
     const workouts = patch(prev.today.workouts);
 
-    // 칼로리 재계산
     const consumed = meals
         .filter((m) => m.status === "COMPLETED" || m.status === "MODIFIED")
         .reduce((s, m) => s + (m.effectiveCalories ?? m.calories), 0);
@@ -105,12 +86,10 @@ function useDashboard() {
     useEffect(() => { load(); return () => clearTimeout(poll.current); }, [load]);
 
     const applyAction = useCallback(async (itemId, payload) => {
-        // 낙관적 반영
         setData((prev) => applyOptimistic(prev, itemId, payload));
         try {
             await applyItemAction(itemId, payload);
         } catch (e) {
-            // 롤백
             load();
             throw e;
         }
@@ -134,11 +113,10 @@ const MEAL_BADGE = {
 };
 
 const WO_COLOR = {
-    CHEST: "#4a7bff", BACK: "#ff8c42", LEGS: "#1a9e75", SHOULDERS: "#a855f7",
+    CHEST: "#4a7bff", BACK: "#ff8c42", LEGS: "#1a6b40", SHOULDERS: "#a855f7",
     ARMS: "#f59e0b", CORE: "#ef4444", CARDIO: "#06b6d4", REST: "#9ca3af",
 };
 
-// 아이템 행 — 탭하면 시트 열림
 function ItemRow({ item, onTap }) {
     const done = item.status === "COMPLETED";
     const skip = item.status === "SKIPPED";
@@ -150,13 +128,10 @@ function ItemRow({ item, onTap }) {
         <div
             onClick={() => onTap(item)}
             className={`flex items-center gap-2 py-3 cursor-pointer select-none
-        ${mod ? "border-l-2 border-[#1a9e75] pl-3 -ml-3" : ""}`}
+                ${mod ? "border-l-2 border-[#1a9e75] pl-3 -ml-3" : ""}`}
         >
-            {/* 상태 인디케이터 */}
-            <div
-                className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center
-          ${done || mod ? "bg-blue-500" : skip ? "bg-[#f0ece5]" : "border-2 border-[#d5d0ca]"}`}
-            >
+            <div className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center
+                ${done || mod ? "bg-blue-500" : skip ? "bg-[#f0ece5]" : "border-2 border-[#d5d0ca]"}`}>
                 {(done || mod) && (
                     <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
                         <path d="M1.5 4.5L3.8 7L7.5 2" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" />
@@ -171,7 +146,7 @@ function ItemRow({ item, onTap }) {
 
             <div className="flex-1 min-w-0">
                 <div className={`text-[11px] font-medium truncate
-          ${muted ? "line-through text-[#b8b4ae]" : "text-[#1a1a1a]"}`}>
+                    ${muted ? "line-through text-[#b8b4ae]" : "text-[#1a1a1a]"}`}>
                     {item.effectiveName ?? item.foodName ?? item.exerciseName}
                 </div>
                 {mod && item.foodName && item.effectiveName !== item.foodName && (
@@ -193,7 +168,7 @@ function ItemRow({ item, onTap }) {
             ) : null}
 
             <span className={`text-[11px] font-semibold flex-shrink-0
-        ${done || mod ? "text-[#b8b4ae]" : "text-blue-500"}`}>
+                ${done || mod ? "text-[#b8b4ae]" : "text-blue-500"}`}>
                 {item.effectiveCalories ?? item.calories}
             </span>
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="flex-shrink-0">
@@ -224,7 +199,9 @@ function MealSection({ meals, onTap }) {
                     return (
                         <div key={cat} className="py-2">
                             <div className="flex items-center gap-2 mb-1">
-                                <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${b.bg} ${b.text}`}>{b.label}</span>
+                                <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${b.bg} ${b.text}`}>
+                                    {b.label}
+                                </span>
                                 <span className={`text-[9px] ml-auto ${done ? "text-[#b8b4ae]" : "text-blue-500 font-semibold"}`}>
                                     {done ? `${totalKcal} kcal ✓` : "미기록"}
                                 </span>
@@ -260,7 +237,6 @@ function WorkoutSection({ workouts, onTap }) {
     );
 }
 
-// ─── Dashboard ─────────────────────────────────────
 export default function DashboardPage() {
     const { data, loading, error, applyAction } = useDashboard();
     const [activeItem, setActiveItem] = useState(null);
@@ -289,6 +265,23 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-[16px] font-bold text-white">플랜 생성 중</p>
                 <p className="text-[12px] text-[#555]">잠시만 기다려 주세요...</p>
+            </div>
+        );
+    }
+
+    if (data.planStatus === "NO_PLAN" || !data.today) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center bg-[#f5f3f0] gap-3 p-6">
+                <div className="w-12 h-12 bg-[#eef3ff] rounded-2xl flex items-center justify-center text-2xl">
+                    📋
+                </div>
+                <div className="text-[15px] font-bold text-[#1a1a1a]">플랜이 없어요</div>
+                <div className="text-[12px] text-[#8a8680] text-center">
+                    AI 플랜을 생성하면<br />오늘의 식단과 운동이 표시돼요
+                </div>
+                <button className="mt-2 bg-blue-500 text-white text-[12px] font-semibold px-5 py-2.5 rounded-xl">
+                    플랜 생성하기
+                </button>
             </div>
         );
     }
@@ -386,8 +379,10 @@ export default function DashboardPage() {
                             label: "운동 달성",
                             value: `${today.workouts.filter((w) => w.status !== "PENDING" && w.status !== "SKIPPED").length} / ${today.workouts.filter((w) => w.status !== "SKIPPED").length} 완료`,
                             pct: today.workouts.filter((w) => w.status !== "SKIPPED").length > 0
-                                ? Math.round(today.workouts.filter((w) => w.status !== "PENDING" && w.status !== "SKIPPED").length
-                                    / today.workouts.filter((w) => w.status !== "SKIPPED").length * 100)
+                                ? Math.round(
+                                    today.workouts.filter((w) => w.status !== "PENDING" && w.status !== "SKIPPED").length /
+                                    today.workouts.filter((w) => w.status !== "SKIPPED").length * 100
+                                )
                                 : 0,
                             color: "#1a9e75",
                         },
@@ -414,10 +409,12 @@ export default function DashboardPage() {
                 ].map(({ label, active }) => (
                     <div key={label} className="flex-1 flex flex-col items-center gap-1">
                         <div className={`w-7 h-7 rounded-2xl flex items-center justify-center text-xs
-              ${active ? "bg-blue-500" : "bg-[#f0ece5]"}`}>
+                            ${active ? "bg-blue-500" : "bg-[#f0ece5]"}`}>
                             <span>{active ? "🏠" : "·"}</span>
                         </div>
-                        <span className={`text-[8px] ${active ? "text-blue-500 font-semibold" : "text-[#b8b4ae]"}`}>{label}</span>
+                        <span className={`text-[8px] ${active ? "text-blue-500 font-semibold" : "text-[#b8b4ae]"}`}>
+                            {label}
+                        </span>
                     </div>
                 ))}
             </div>
