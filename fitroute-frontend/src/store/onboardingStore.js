@@ -1,6 +1,7 @@
-// store/onboardingStore.js
+// src/store/onboardingStore.js
 import { create } from 'zustand';
-import { signupApi, loginApi } from '../api/auth';
+import { signupApi } from '../api/auth';
+import useAuthStore from './authStore'; // 추가
 
 const useOnboardingStore = create((set, get) => ({
     credentials: {},
@@ -28,18 +29,10 @@ const useOnboardingStore = create((set, get) => ({
             dietStyle: aiPreferences.dietStyle,
         };
 
-        // 1. 회원가입
-        await signupApi(payload);
+        const { accessToken, refreshToken } = await signupApi(payload);
 
-        // 2. 자동 로그인
-        const { accessToken, refreshToken } = await loginApi({
-            email: credentials.email,
-            password: credentials.password,
-        });
-
-        // 3. 토큰 저장
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
+        // localStorage 직접 저장 대신 setAuth() 호출 → isAuthenticated: true 처리까지 한 번에
+        useAuthStore.getState().setAuth({ accessToken, refreshToken });
     },
 }));
 
