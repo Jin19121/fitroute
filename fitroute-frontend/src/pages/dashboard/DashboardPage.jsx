@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import apiClient from "../../api/axios";
 import PlanItemActionSheet from "../../components/PlanItemActionSheet";
+import BottomNav from '../../components/common/BottomNav';
 
 // ─── API 계층 ─────────────────────────────────────
 const fetchDashboard = () =>
@@ -401,23 +402,8 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Bottom nav */}
-            <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-[#f0ece5] flex py-2 pb-5">
-                {[
-                    { label: "홈", active: true }, { label: "운동" },
-                    { label: "식단" }, { label: "리포트" },
-                ].map(({ label, active }) => (
-                    <div key={label} className="flex-1 flex flex-col items-center gap-1">
-                        <div className={`w-7 h-7 rounded-2xl flex items-center justify-center text-xs
-                            ${active ? "bg-blue-500" : "bg-[#f0ece5]"}`}>
-                            <span>{active ? "🏠" : "·"}</span>
-                        </div>
-                        <span className={`text-[8px] ${active ? "text-blue-500 font-semibold" : "text-[#b8b4ae]"}`}>
-                            {label}
-                        </span>
-                    </div>
-                ))}
-            </div>
+            {/* Bottom nav — 기존 정적 코드를 아래로 교체 */}
+            <BottomNav />
 
             {/* Action Sheet */}
             <PlanItemActionSheet

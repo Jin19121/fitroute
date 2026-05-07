@@ -8,6 +8,9 @@ import {
 } from 'react-router-dom';
 import useAuthStore from './store/authStore';
 import PrivateRoute from './components/layout/PrivateRoute';
+import DietPage from './pages/Diet/DietPage';
+import WorkoutPage from './pages/Workout/WorkoutPage';
+import ReportPage from './pages/Report/ReportPage';
 
 // Pages — lazy-loaded for code splitting
 import { lazy, Suspense } from 'react';
@@ -47,6 +50,9 @@ const App = () => {
           {/* Main app (requires auth) */}
           <Route element={<PrivateRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/diet" element={<DietPage />} />
+            <Route path="/workout" element={<WorkoutPage />} />
+            <Route path="/report" element={<ReportPage />} />
           </Route>
 
           {/* Catch-all */}
