@@ -4,6 +4,7 @@ package com.fitroute.domain.plan.service;
 import com.fitroute.domain.plan.dto.DailyPlanResponse;
 import com.fitroute.domain.plan.dto.PlanItemCreateRequest;
 import com.fitroute.domain.plan.dto.PlanItemResponse;
+import com.fitroute.domain.plan.dto.WeeklyWorkoutPlanResponse;
 import com.fitroute.domain.plan.entity.DailyPlan;
 import com.fitroute.domain.plan.entity.PlanItem;
 import com.fitroute.domain.plan.repository.DailyPlanRepository;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -251,6 +253,73 @@ public class DailyPlanService {
                 userId, req.getType(), req.getName(), today);
 
         return PlanItemResponse.from(saved);
+    }
+
+    // ─────────────────────────────────────────────
+    // 주간 운동 계획 조회
+    // ─────────────────────────────────────────────
+    public List<WeeklyWorkoutPlanResponse> getWeeklyWorkoutPlan(Long userId, LocalDate startDate) {
+        // 1. startDate부터 7일간의 DailyPlan 조회
+        LocalDate endDate = startDate.plusDays(6);
+
+        List<DailyPlan> dailyPlans = dailyPlanRepository
+                .findByUserIdAndPlanDateBetween(userId, startDate, endDate);
+
+        if (dailyPlans.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 2. DailyPlan별로 PlanItem 조회 (WORKOUT만)
+        List<WeeklyWorkoutPlanResponse> weeklyPlans = new ArrayList<>();
+
+        for (DailyPlan plan : dailyPlans) {
+            List<PlanItem> workoutItems = planItemRepository
+                    .findByPlanIdAndDateAndType(plan.getId(), plan.getPlanDate(), PlanItemType.WORKOUT);
+
+            // 3. PlanItem을 RoutineBlock으로 변환
+            List<WeeklyWorkoutPlanResponse.RoutineBlockDto> routines = workoutItems.stream()
+                    .map(item -> WeeklyWorkoutPlanResponse.RoutineBlockDto.builder()
+                            .id(item.getId())
+                            .name(item.getEffectiveName())
+                            .duration(item.getDurationMin() != null ? item.getDurationMin() : 0)
+                            .category(item.getCategory().name())
+                            .exercises(List.of(
+                                    WeeklyWorkoutPlanResponse.RoutineBlockDto.ExerciseDto.builder()
+                                            .name(item.getEffectiveName())
+                                            .sets(item.getEffectiveSets())
+                                            .reps(item.getEffectiveReps())
+                                            .build()))
+                            .build())
+                    .collect(Collectors.toList());
+
+            // 4. 요일명 계산
+            String dayName = getDayName(plan.getPlanDate());
+
+            // 5. 응답 빌드
+            WeeklyWorkoutPlanResponse response = WeeklyWorkoutPlanResponse.builder()
+                    .date(plan.getPlanDate())
+                    .dayName(dayName)
+                    .routines(routines)
+                    .build();
+
+            weeklyPlans.add(response);
+        }
+
+        return weeklyPlans;
+    }
+
+    // 요일명 반환 헬퍼
+    private String getDayName(LocalDate date) {
+        return switch (date.getDayOfWeek().getValue()) {
+            case 1 -> "월";
+            case 2 -> "화";
+            case 3 -> "수";
+            case 4 -> "목";
+            case 5 -> "금";
+            case 6 -> "토";
+            case 7 -> "일";
+            default -> "요일";
+        };
     }
 
     // ─────────────────────────────────────────────

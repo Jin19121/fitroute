@@ -162,9 +162,6 @@ public class DashboardService {
                                         req.getModifiedFat(),
                                         req.getModifiedSets(),
                                         req.getModifiedReps());
-                        case PENDING -> item.resetToPending();
-                        default -> throw new IllegalArgumentException(
-                                        "지원하지 않는 status: " + req.getStatus());
                         case EDITED -> item.edit(
                                         req.getModifiedName(),
                                         req.getModifiedCalories(),
@@ -173,6 +170,9 @@ public class DashboardService {
                                         req.getModifiedFat(),
                                         req.getModifiedSets(),
                                         req.getModifiedReps());
+                        case PENDING -> item.resetToPending();
+                        default -> throw new IllegalArgumentException(
+                                        "지원하지 않는 status: " + req.getStatus());
                 }
         }
 
