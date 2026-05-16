@@ -2,6 +2,8 @@
 package com.fitroute.domain.plan.service;
 
 import com.fitroute.domain.plan.dto.DailyPlanResponse;
+import com.fitroute.domain.plan.dto.PlanItemCreateRequest;
+import com.fitroute.domain.plan.dto.PlanItemResponse;
 import com.fitroute.domain.plan.entity.DailyPlan;
 import com.fitroute.domain.plan.entity.PlanItem;
 import com.fitroute.domain.plan.repository.DailyPlanRepository;
@@ -189,6 +191,66 @@ public class DailyPlanService {
 
         planItemRepository.saveAll(items);
         log.info("[PlanItem] {} items saved - planId={}", items.size(), dailyPlan.getId());
+    }
+
+    // ─────────────────────────────────────────────
+    // PlanItem 추가 (운동/식단)
+    // ─────────────────────────────────────────────
+    @Transactional
+    public PlanItemResponse addPlanItem(Long userId, PlanItemCreateRequest req) {
+        req.validate();
+
+        LocalDate today = LocalDate.now();
+
+        // 1. 오늘의 DailyPlan 조회
+        DailyPlan dailyPlan = dailyPlanRepository
+                .findByUserIdAndPlanDate(userId, today)
+                .orElseGet(() -> {
+                    // DailyPlan이 없으면 기본값으로 새로 생성
+                    DailyPlan newPlan = DailyPlan.builder()
+                            .userId(userId)
+                            .planDate(today)
+                            .build();
+                    // 상태를 ACTIVE로 설정 (완성된 상태)
+                    newPlan.complete(
+                            1500, // 기본 칼로리 목표
+                            new HashMap<>(),
+                            new HashMap<>(),
+                            new HashMap<>());
+                    return dailyPlanRepository.save(newPlan);
+                });
+
+        // 2. PlanItem 생성
+        PlanItem item = PlanItem.builder()
+                .dailyPlan(dailyPlan)
+                .date(today)
+                .type(req.getType())
+                .category(req.getCategory())
+                .calories(req.getCalories())
+                .status(PlanItemStatus.PENDING)
+                .build();
+
+        // 3. 타입별로 필드 설정
+        if (req.getType() == PlanItemType.MEAL) {
+            item.setFoodName(req.getName());
+            item.setProtein(req.getProtein());
+            item.setCarbs(req.getCarbs());
+            item.setFat(req.getFat());
+        } else if (req.getType() == PlanItemType.WORKOUT) {
+            item.setExerciseName(req.getName());
+            item.setSets(req.getSets());
+            item.setReps(req.getReps());
+            item.setWeightKg(req.getWeightKg());
+            item.setDurationMin(req.getDurationMin());
+        }
+
+        // 4. 저장
+        PlanItem saved = planItemRepository.save(item);
+
+        log.info("[PlanItem] Added - userId={}, type={}, name={}, date={}",
+                userId, req.getType(), req.getName(), today);
+
+        return PlanItemResponse.from(saved);
     }
 
     // ─────────────────────────────────────────────

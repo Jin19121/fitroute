@@ -1,3 +1,4 @@
+// domain/plan/controller/DashboardController.java
 package com.fitroute.domain.plan.controller;
 
 import com.fitroute.domain.plan.dto.DashboardResponse;

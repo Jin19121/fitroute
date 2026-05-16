@@ -125,19 +125,18 @@ public class PlanItem {
     public void resetToPending() {
         this.status = PlanItemStatus.PENDING;
         this.statusUpdatedAt = null;
-        // clearModifiedFields() ← 제거
     }
 
     public void complete() {
         this.status = PlanItemStatus.COMPLETED;
         this.statusUpdatedAt = LocalDateTime.now();
-        clearModifiedFields(); // 완수 시엔 수정 내용 초기화 유지
+        clearModifiedFields();
     }
 
     public void skip() {
         this.status = PlanItemStatus.SKIPPED;
         this.statusUpdatedAt = LocalDateTime.now();
-        clearModifiedFields(); // 미실행 시엔 수정 내용 초기화 유지
+        clearModifiedFields();
     }
 
     private void clearModifiedFields() {
@@ -169,5 +168,42 @@ public class PlanItem {
             this.modifiedSets = sets;
         if (reps != null)
             this.modifiedReps = reps;
+    }
+
+    // ─── Setter 메서드 (PlanItem 생성 후 필드 설정용) ────
+    public void setFoodName(String foodName) {
+        this.foodName = foodName;
+    }
+
+    public void setExerciseName(String exerciseName) {
+        this.exerciseName = exerciseName;
+    }
+
+    public void setSets(Integer sets) {
+        this.sets = sets;
+    }
+
+    public void setReps(Integer reps) {
+        this.reps = reps;
+    }
+
+    public void setWeightKg(Integer weightKg) {
+        this.weightKg = weightKg;
+    }
+
+    public void setDurationMin(Integer durationMin) {
+        this.durationMin = durationMin;
+    }
+
+    public void setProtein(Integer protein) {
+        this.protein = protein;
+    }
+
+    public void setCarbs(Integer carbs) {
+        this.carbs = carbs;
+    }
+
+    public void setFat(Integer fat) {
+        this.fat = fat;
     }
 }

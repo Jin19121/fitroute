@@ -2,7 +2,11 @@
 package com.fitroute.domain.plan.controller;
 
 import com.fitroute.domain.plan.dto.DailyPlanResponse;
+import com.fitroute.domain.plan.dto.PlanItemCreateRequest;
+import com.fitroute.domain.plan.dto.PlanItemResponse;
 import com.fitroute.domain.plan.service.DailyPlanService;
+
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,5 +37,27 @@ public class DailyPlanController {
     @GetMapping("/today")
     public ResponseEntity<DailyPlanResponse> getToday(@AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(dailyPlanService.getTodayPlan(userId));
+    }
+
+    /**
+     * POST /api/plans/items
+     * 운동 또는 식단 항목 직접 추가
+     * 
+     * 요청 예시:
+     * {
+     * "type": "WORKOUT",
+     * "category": "CHEST",
+     * "name": "벤치프레스",
+     * "calories": 200,
+     * "sets": 4,
+     * "reps": 10
+     * }
+     */
+    @PostMapping("/items")
+    public ResponseEntity<PlanItemResponse> addPlanItem(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody PlanItemCreateRequest request) {
+        PlanItemResponse response = dailyPlanService.addPlanItem(userId, request);
+        return ResponseEntity.status(201).body(response);
     }
 }
