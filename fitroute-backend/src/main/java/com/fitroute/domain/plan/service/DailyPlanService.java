@@ -133,6 +133,10 @@ public class DailyPlanService {
                     String name = String.valueOf(meal.getOrDefault("name", "식사"));
                     int kcal = toInt(meal.get("kcal"), 0);
 
+                    int protein = toInt(meal.get("protein"), 0);
+                    int carbs = toInt(meal.get("carbs"), 0);
+                    int fat = toInt(meal.get("fat"), 0);
+
                     items.add(PlanItem.builder()
                             .dailyPlan(dailyPlan)
                             .date(date)
@@ -140,6 +144,9 @@ public class DailyPlanService {
                             .category(parseMealCategory(typeStr))
                             .foodName(name)
                             .calories(kcal)
+                            .protein(protein)
+                            .carbs(carbs)
+                            .fat(fat)
                             .status(PlanItemStatus.PENDING)
                             .build());
                 }

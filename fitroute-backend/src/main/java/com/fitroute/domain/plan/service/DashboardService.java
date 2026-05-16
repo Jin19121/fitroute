@@ -69,9 +69,11 @@ public class DashboardService {
                                 .collect(Collectors.toList());
 
                 // 4. 칼로리 계산
+                // EDITED는 섭취 칼로리에 포함 안 함 (미완수이므로)
                 int consumedCalories = meals.stream()
                                 .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED
                                                 || i.getStatus() == PlanItemStatus.MODIFIED)
+                                // EDITED 제외
                                 .mapToInt(PlanItem::getEffectiveCalories)
                                 .sum();
 
@@ -163,6 +165,14 @@ public class DashboardService {
                         case PENDING -> item.resetToPending();
                         default -> throw new IllegalArgumentException(
                                         "지원하지 않는 status: " + req.getStatus());
+                        case EDITED -> item.edit(
+                                        req.getModifiedName(),
+                                        req.getModifiedCalories(),
+                                        req.getModifiedProtein(),
+                                        req.getModifiedCarbs(),
+                                        req.getModifiedFat(),
+                                        req.getModifiedSets(),
+                                        req.getModifiedReps());
                 }
         }
 

@@ -84,7 +84,19 @@ function useDashboard() {
         }
     }, []);
 
-    useEffect(() => { load(); return () => clearTimeout(poll.current); }, [load]);
+    useEffect(() => {
+        load();
+        return () => clearTimeout(poll.current);
+    }, [load]);
+
+    // ↓ 추가 — 다른 페이지에서 돌아올 때 재조회
+    useEffect(() => {
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') load();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => document.removeEventListener('visibilitychange', onVisible);
+    }, [load]);
 
     const applyAction = useCallback(async (itemId, payload) => {
         setData((prev) => applyOptimistic(prev, itemId, payload));

@@ -63,8 +63,11 @@ public class AiPlanService {
     }
 
     private String buildPrompt(UserProfile profile, int calorieTarget) {
-        return String.format("""
-                당신은 전문 영양사이자 트레이너입니다. 아래 사용자 정보를 바탕으로 오늘 하루 식단과 운동 계획을 JSON 형식으로만 반환하세요.
+            // buildPrompt() 메서드의 JSON 구조 부분만 교체
+
+return String.format(
+                """
+                                당신은 전문 영양사이자 트레이너입니다. 아래 사용자 정보를 바탕으로 오늘 하루 식단과 운동 계획을 JSON 형식으로만 반환하세요.
 
                 사용자 정보:
                 - 현재 체중: %.1fkg, 목표 체중: %.1fkg
@@ -78,9 +81,17 @@ public class AiPlanService {
                 {
                   "meal_plan": {
                     "meals": [
-                      {"type": "BREAKFAST", "name": "음식명", "kcal": 숫자, "time": "HH:mm"},
-                      {"type": "LUNCH", "name": "음식명", "kcal": 숫자, "time": "HH:mm"},
-                      {"type": "DINNER", "name": "음식명", "kcal": 숫자, "time": "HH:mm"}
+                      {
+                        "type": "BREAKFAST",
+                        "name": "음식명",
+                        "kcal": 숫자,
+                        "protein": 숫자,
+                        "carbs": 숫자,
+                        "fat": 숫자,
+                        "time": "HH:mm"
+                      },
+                      {"type": "LUNCH", "name": "음식명", "kcal": 숫자, "protein": 숫자, "carbs": 숫자, "fat": 숫자, "time": "HH:mm"},
+                      {"type": "DINNER", "name": "음식명", "kcal": 숫자, "protein": 숫자, "carbs": 숫자, "fat": 숫자, "time": "HH:mm"}
                     ],
                     "total_kcal": 숫자
                   },

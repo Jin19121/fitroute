@@ -101,18 +101,6 @@ public class PlanItem {
     }
 
     // ── 도메인 메서드 ─────────────────────────────────
-    public void complete() {
-        this.status = PlanItemStatus.COMPLETED;
-        this.statusUpdatedAt = LocalDateTime.now();
-        clearModifiedFields();
-    }
-
-    public void skip() {
-        this.status = PlanItemStatus.SKIPPED;
-        this.statusUpdatedAt = LocalDateTime.now();
-        clearModifiedFields();
-    }
-
     public void modify(String name, Integer cal,
             Integer protein, Integer carbs, Integer fat,
             Integer sets, Integer reps) {
@@ -137,7 +125,19 @@ public class PlanItem {
     public void resetToPending() {
         this.status = PlanItemStatus.PENDING;
         this.statusUpdatedAt = null;
-        clearModifiedFields();
+        // clearModifiedFields() ← 제거
+    }
+
+    public void complete() {
+        this.status = PlanItemStatus.COMPLETED;
+        this.statusUpdatedAt = LocalDateTime.now();
+        clearModifiedFields(); // 완수 시엔 수정 내용 초기화 유지
+    }
+
+    public void skip() {
+        this.status = PlanItemStatus.SKIPPED;
+        this.statusUpdatedAt = LocalDateTime.now();
+        clearModifiedFields(); // 미실행 시엔 수정 내용 초기화 유지
     }
 
     private void clearModifiedFields() {
@@ -148,5 +148,26 @@ public class PlanItem {
         this.modifiedFat = null;
         this.modifiedSets = null;
         this.modifiedReps = null;
+    }
+
+    public void edit(String name, Integer cal,
+            Integer protein, Integer carbs, Integer fat,
+            Integer sets, Integer reps) {
+        this.status = PlanItemStatus.EDITED;
+        this.statusUpdatedAt = LocalDateTime.now();
+        if (name != null)
+            this.modifiedName = name;
+        if (cal != null)
+            this.modifiedCalories = cal;
+        if (protein != null)
+            this.modifiedProtein = protein;
+        if (carbs != null)
+            this.modifiedCarbs = carbs;
+        if (fat != null)
+            this.modifiedFat = fat;
+        if (sets != null)
+            this.modifiedSets = sets;
+        if (reps != null)
+            this.modifiedReps = reps;
     }
 }

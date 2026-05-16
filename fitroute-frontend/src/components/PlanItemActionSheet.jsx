@@ -1,18 +1,5 @@
 // src/components/PlanItemActionSheet.jsx
-// 완수 / 미실행 / 수정 3-액션 바텀 시트
-// props:
-//   item      — MealItemDto | WorkoutItemDto (nullable: 닫힌 상태)
-//   onClose   — () => void
-//   onApply   — (itemId, payload) => Promise<void>
-//             payload: { status: 'COMPLETED'|'SKIPPED'|'PENDING'|'MODIFIED', ...modifiedFields }
-
 import { useState, useEffect, useRef } from "react";
-
-// ─── API 페이로드 빌더 ───────────────────────────
-function buildCompletePayload() { return { status: "COMPLETED" }; }
-function buildSkipPayload() { return { status: "SKIPPED" }; }
-function buildPendingPayload() { return { status: "PENDING" }; }
-function buildModifiedPayload(f) { return { status: "MODIFIED", ...f }; }
 
 // ─── 아이콘 SVG ──────────────────────────────────
 const CheckIcon = () => (
@@ -53,18 +40,19 @@ function MealEditForm({ item, onSubmit, onBack }) {
 
     useEffect(() => { nameRef.current?.focus(); }, []);
 
-    const handleSubmit = () => {
+    const handleSubmit = (saveStatus) => {
         if (!name.trim() && !cal) {
             alert("음식명 또는 칼로리를 입력해 주세요.");
             return;
         }
-        onSubmit(buildModifiedPayload({
+        onSubmit({
+            status: saveStatus,
             modifiedName: name.trim() || undefined,
             modifiedCalories: cal ? Number(cal) : undefined,
             modifiedProtein: protein ? Number(protein) : undefined,
             modifiedCarbs: carbs ? Number(carbs) : undefined,
             modifiedFat: fat ? Number(fat) : undefined,
-        }));
+        });
     };
 
     return (
@@ -122,10 +110,16 @@ function MealEditForm({ item, onSubmit, onBack }) {
             </div>
 
             <button
-                onClick={handleSubmit}
+                onClick={() => handleSubmit('MODIFIED')}
                 className="w-full bg-blue-500 text-white text-[13px] font-semibold py-3 rounded-xl mt-1"
             >
-                수정 완수로 저장
+                수정 후 완수
+            </button>
+            <button
+                onClick={() => handleSubmit('EDITED')}
+                className="w-full bg-[#fff8e6] text-[#b55a00] border border-[#f5e0b0] text-[13px] font-semibold py-3 rounded-xl"
+            >
+                수정만 하기
             </button>
 
             <button
@@ -148,17 +142,18 @@ function WorkoutEditForm({ item, onSubmit, onBack }) {
 
     useEffect(() => { nameRef.current?.focus(); }, []);
 
-    const handleSubmit = () => {
+    const handleSubmit = (saveStatus) => {
         if (!name.trim() && !cal) {
             alert("운동명 또는 칼로리를 입력해 주세요.");
             return;
         }
-        onSubmit(buildModifiedPayload({
+        onSubmit({
+            status: saveStatus,
             modifiedName: name.trim() || undefined,
+            modifiedCalories: cal ? Number(cal) : undefined,
             modifiedSets: sets ? Number(sets) : undefined,
             modifiedReps: reps ? Number(reps) : undefined,
-            modifiedCalories: cal ? Number(cal) : undefined,
-        }));
+        });
     };
 
     return (
@@ -198,10 +193,16 @@ function WorkoutEditForm({ item, onSubmit, onBack }) {
             </div>
 
             <button
-                onClick={handleSubmit}
+                onClick={() => handleSubmit('MODIFIED')}
                 className="w-full bg-blue-500 text-white text-[13px] font-semibold py-3 rounded-xl mt-1"
             >
-                수정 완수로 저장
+                수정 후 완수
+            </button>
+            <button
+                onClick={() => handleSubmit('EDITED')}
+                className="w-full bg-[#fff8e6] text-[#b55a00] border border-[#f5e0b0] text-[13px] font-semibold py-3 rounded-xl"
+            >
+                수정만 하기
             </button>
 
             <button
@@ -234,15 +235,14 @@ function ActionBtn({ icon, label, desc, onClick, iconBg }) {
 
 // ─── 메인 컴포넌트 ────────────────────────────────
 export default function PlanItemActionSheet({ item, onClose, onApply }) {
-    const [view, setView] = useState("main"); // "main" | "editMeal" | "editWorkout"
+    const [view, setView] = useState("main");
     const [loading, setLoading] = useState(false);
 
-    // item이 바뀔 때마다 초기 뷰로 리셋
     useEffect(() => { setView("main"); }, [item]);
 
     if (!item) return null;
 
-    const isDone = ["COMPLETED", "SKIPPED", "MODIFIED"].includes(item.status);
+    const isDone = ["COMPLETED", "SKIPPED", "MODIFIED", "EDITED"].includes(item.status);
     const isMeal = item.foodName !== undefined;
     const displayName = item.effectiveName ?? item.foodName ?? item.exerciseName ?? "-";
 
@@ -260,28 +260,21 @@ export default function PlanItemActionSheet({ item, onClose, onApply }) {
 
     return (
         <>
-            {/* Backdrop */}
-            <div
-                className="fixed inset-0 bg-black/40 z-40"
-                onClick={onClose}
-            />
+            <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
 
-            {/* Sheet */}
             <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl px-5 pt-4 pb-8 shadow-2xl"
                 style={{ animation: "slideUp 0.22s ease-out" }}>
                 <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
 
-                {/* Handle */}
                 <div className="w-9 h-1 bg-[#d5d0ca] rounded-full mx-auto mb-4" />
 
-                {/* Item info */}
                 <div className="mb-4 pb-4 border-b border-[#f0ece5]">
                     <div className="text-[14px] font-semibold text-[#1a1a1a]">{displayName}</div>
                     <div className="text-[11px] text-[#8a8680] mt-0.5">
                         {isMeal
-                            ? `${item.calories} kcal · P${item.protein}g C${item.carbs}g F${item.fat}g`
-                            : `${item.calories} kcal · ${item.sets}세트 × ${item.reps}회`}
-                        {item.isModified && (
+                            ? `${item.calories} kcal · P${item.protein ?? 0}g C${item.carbs ?? 0}g F${item.fat ?? 0}g`
+                            : `${item.calories} kcal · ${item.sets ?? "-"}세트 × ${item.reps ?? "-"}회`}
+                        {(item.status === "MODIFIED" || item.status === "EDITED") && (
                             <span className="ml-2 text-[#1a9e75] font-medium">
                                 (수정됨: {item.effectiveCalories} kcal)
                             </span>
@@ -289,7 +282,6 @@ export default function PlanItemActionSheet({ item, onClose, onApply }) {
                     </div>
                 </div>
 
-                {/* Views */}
                 {view === "main" && (
                     <div className="flex flex-col gap-2">
                         {item.status !== "COMPLETED" && (
@@ -298,7 +290,7 @@ export default function PlanItemActionSheet({ item, onClose, onApply }) {
                                 label="완수"
                                 desc="계획대로 완료했어요"
                                 iconBg="bg-[#eef3ff]"
-                                onClick={() => handle(buildCompletePayload())}
+                                onClick={() => handle({ status: "COMPLETED" })}
                             />
                         )}
                         {item.status !== "SKIPPED" && (
@@ -307,10 +299,10 @@ export default function PlanItemActionSheet({ item, onClose, onApply }) {
                                 label="미실행"
                                 desc="오늘은 건너뛸게요"
                                 iconBg="bg-[#f5f3f0]"
-                                onClick={() => handle(buildSkipPayload())}
+                                onClick={() => handle({ status: "SKIPPED" })}
                             />
                         )}
-                        {item.status !== "MODIFIED" && (
+                        {!["MODIFIED", "EDITED"].includes(item.status) && (
                             <ActionBtn
                                 icon={<EditIcon />}
                                 label="수정"
@@ -325,32 +317,21 @@ export default function PlanItemActionSheet({ item, onClose, onApply }) {
                                 label="되돌리기"
                                 desc="미완료 상태로 되돌려요"
                                 iconBg="bg-[#f5f3f0]"
-                                onClick={() => handle(buildPendingPayload())}
+                                onClick={() => handle({ status: "PENDING" })}
                             />
                         )}
-                        <button
-                            onClick={onClose}
-                            className="text-[12px] text-[#8a8680] text-center py-3"
-                        >
+                        <button onClick={onClose} className="text-[12px] text-[#8a8680] text-center py-3">
                             취소
                         </button>
                     </div>
                 )}
 
                 {view === "editMeal" && (
-                    <MealEditForm
-                        item={item}
-                        onSubmit={handle}
-                        onBack={() => setView("main")}
-                    />
+                    <MealEditForm item={item} onSubmit={handle} onBack={() => setView("main")} />
                 )}
 
                 {view === "editWorkout" && (
-                    <WorkoutEditForm
-                        item={item}
-                        onSubmit={handle}
-                        onBack={() => setView("main")}
-                    />
+                    <WorkoutEditForm item={item} onSubmit={handle} onBack={() => setView("main")} />
                 )}
 
                 {loading && (

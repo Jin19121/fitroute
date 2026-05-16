@@ -2,5 +2,5 @@
 package com.fitroute.global.enums;
 
 public enum PlanItemStatus {
-    PENDING, COMPLETED, SKIPPED, MODIFIED
+    PENDING, COMPLETED, SKIPPED, MODIFIED, EDITED
 }

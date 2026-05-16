@@ -1,7 +1,7 @@
 // src/pages/onboarding/AiLoadingPage.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../api/client';
+import apiClient from '../../api/axios';
 
 const STEPS = [
     { label: '사용자 데이터 분석', duration: 1800 },
@@ -26,7 +26,7 @@ const AiLoadingPage = () => {
 
         const generatePlan = async () => {
             try {
-                await api.post('/plans/today/generate', {}, { timeout: 120000 });
+                await apiClient.post('/api/plans/today/generate', {}, { timeout: 120000 });
 
                 clearInterval(progressRef.current);
                 setProgress(100);

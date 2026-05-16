@@ -1,35 +1,51 @@
-// components/diet/MealSection.jsx
+// src/components/diet/MealSection.jsx
 import FoodItem from '../../pages/diet/FoodItem';
 
-export default function MealSection({ label, items = [] }) {
-    const planned = items.reduce((sum, i) => sum + (i.calories ?? 0), 0);
+const MEAL_BADGE = {
+    BREAKFAST: { bg: '#FFF1E6', color: '#B55A00', label: '아침' },
+    LUNCH: { bg: '#EEF3FF', color: '#2A5CC5', label: '점심' },
+    DINNER: { bg: '#EDFAF3', color: '#1A6B40', label: '저녁' },
+    SNACK: { bg: '#FAF0FF', color: '#7B2FAB', label: '간식' },
+};
+
+export default function MealSection({ label, items = [], mealType, onTap }) {
+    const badge = MEAL_BADGE[mealType] ?? { bg: '#F2EEE8', color: '#8A8680', label };
+
+    const planned = items.reduce((s, i) => s + (i.calories ?? 0), 0);
     const consumed = items
-        .filter((i) => i.status === 'COMPLETED' || i.status === 'MODIFIED')
-        .reduce((sum, i) => sum + (i.effectiveCalories ?? i.calories ?? 0), 0);
+        .filter(i => i.status === 'COMPLETED' || i.status === 'MODIFIED')
+        .reduce((s, i) => s + (i.effectiveCalories ?? i.calories ?? 0), 0);
+    const allDone = items.length > 0 && items.every(i => i.status !== 'PENDING');
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
-                <span className="font-semibold text-gray-800">{label}</span>
-                <span className="text-xs text-gray-400">{consumed} / {planned} kcal</span>
+        <div style={{ marginBottom: 6 }}>
+            {/* 식사 헤더 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                <span style={{
+                    fontSize: 8, fontWeight: 600,
+                    padding: '2px 7px', borderRadius: 10,
+                    background: badge.bg, color: badge.color,
+                }}>
+                    {badge.label}
+                </span>
+                <span style={{
+                    fontSize: 8, marginLeft: 'auto',
+                    color: allDone ? '#B8B4AE' : '#4A7BFF',
+                    fontWeight: allDone ? 400 : 600,
+                }}>
+                    {allDone ? `${consumed} kcal ✓` : '미기록'}
+                </span>
             </div>
 
-            <div className="divide-y divide-gray-50">
-                {items.length === 0 ? (
-                    <p className="text-sm text-gray-400 p-4 text-center">계획된 식단이 없습니다</p>
-                ) : (
-                    items.map((item) => (
-                        <FoodItem
-                            key={item.id}
-                            planItem={item}
-                        />
-                    ))
-                )}
-            </div>
-
-            <button className="w-full py-2 text-sm text-green-500 hover:bg-green-50 transition-colors">
-                + 음식 추가
-            </button>
+            {/* 아이템 목록 */}
+            {items.map((item, idx) => (
+                <FoodItem
+                    key={item.id}
+                    planItem={item}
+                    isLast={idx === items.length - 1}
+                    onTap={onTap}
+                />
+            ))}
         </div>
     );
 }
