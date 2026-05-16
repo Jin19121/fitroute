@@ -1,6 +1,7 @@
 // domain/plan/dto/PlanItemCreateRequest.java
 package com.fitroute.domain.plan.dto;
 
+import com.fitroute.global.enums.PlanItemStatus;
 import com.fitroute.global.enums.PlanItemCategory;
 import com.fitroute.global.enums.PlanItemType;
 import jakarta.validation.constraints.NotBlank;
@@ -41,6 +42,10 @@ public class PlanItemCreateRequest {
     private Integer weightKg;
     private Integer durationMin;
 
+    // ─── Status 필드 (선택사항, 기본값: COMPLETED) ──
+    @Builder.Default
+    private PlanItemStatus status = PlanItemStatus.COMPLETED;
+
     // ─── 검증 로직 ──────────────────────────────
     public void validate() {
         if (type == null) {
@@ -64,6 +69,11 @@ public class PlanItemCreateRequest {
             if (protein == null || carbs == null || fat == null) {
                 throw new IllegalArgumentException("MEAL 타입: protein, carbs, fat은 필수입니다");
             }
+        }
+
+        // Status 검증 (필수는 아니지만 null인 경우 방어)
+        if (status == null) {
+            this.status = PlanItemStatus.COMPLETED;
         }
     }
 }

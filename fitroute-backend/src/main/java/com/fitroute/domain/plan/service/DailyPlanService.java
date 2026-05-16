@@ -168,6 +168,10 @@ public class DailyPlanService {
 
                     Map<String, Object> workout = (Map<String, Object>) obj;
 
+                    String categoryStr = String.valueOf(workout.getOrDefault("category", "CARDIO"));
+                    int sets = toInt(workout.get("sets"), 0);
+                    int reps = toInt(workout.get("reps"), 0);
+
                     String name = String.valueOf(workout.getOrDefault("name", "운동"));
                     int kcalBurn = toInt(workout.get("kcal_burn"), 0);
                     int durationMin = toInt(workout.get("duration_min"), 0);
@@ -176,9 +180,11 @@ public class DailyPlanService {
                             .dailyPlan(dailyPlan)
                             .date(date)
                             .type(PlanItemType.WORKOUT)
-                            .category(parseWorkoutCategory(name))
+                            .category(parseWorkoutCategory(categoryStr))
                             .exerciseName(name)
                             .calories(kcalBurn)
+                            .sets(sets)
+                            .reps(reps)
                             .durationMin(durationMin)
                             .status(PlanItemStatus.PENDING)
                             .build());
@@ -222,17 +228,22 @@ public class DailyPlanService {
                     return dailyPlanRepository.save(newPlan);
                 });
 
-        // 2. PlanItem 생성
+        // 2. Status 결정 (요청에서 받거나 기본값 사용)
+        PlanItemStatus itemStatus = req.getStatus() != null
+                ? req.getStatus()
+                : PlanItemStatus.COMPLETED;
+
+        // 3. PlanItem 생성
         PlanItem item = PlanItem.builder()
                 .dailyPlan(dailyPlan)
                 .date(today)
                 .type(req.getType())
                 .category(req.getCategory())
                 .calories(req.getCalories())
-                .status(PlanItemStatus.PENDING)
+                .status(itemStatus)
                 .build();
 
-        // 3. 타입별로 필드 설정
+        // 4. 타입별로 필드 설정
         if (req.getType() == PlanItemType.MEAL) {
             item.setFoodName(req.getName());
             item.setProtein(req.getProtein());
@@ -246,11 +257,11 @@ public class DailyPlanService {
             item.setDurationMin(req.getDurationMin());
         }
 
-        // 4. 저장
+        // 5. 저장
         PlanItem saved = planItemRepository.save(item);
 
-        log.info("[PlanItem] Added - userId={}, type={}, name={}, date={}",
-                userId, req.getType(), req.getName(), today);
+        log.info("[PlanItem] Added - userId={}, type={}, name={}, status={}, date={}",
+                userId, req.getType(), req.getName(), itemStatus, today);
 
         return PlanItemResponse.from(saved);
     }

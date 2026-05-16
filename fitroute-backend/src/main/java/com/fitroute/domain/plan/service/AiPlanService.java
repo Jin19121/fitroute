@@ -63,51 +63,61 @@ public class AiPlanService {
     }
 
     private String buildPrompt(UserProfile profile, int calorieTarget) {
-            // buildPrompt() 메서드의 JSON 구조 부분만 교체
+            return String.format(
+                            """
+                                                            당신은 전문 영양사이자 트레이너입니다. 아래 사용자 정보를 바탕으로 오늘 하루 식단과 운동 계획을 JSON 형식으로만 반환하세요.
 
-return String.format(
-                """
-                                당신은 전문 영양사이자 트레이너입니다. 아래 사용자 정보를 바탕으로 오늘 하루 식단과 운동 계획을 JSON 형식으로만 반환하세요.
+                                                            사용자 정보:
+                                                            - 현재 체중: %.1fkg, 목표 체중: %.1fkg
+                                                            - 키: %.1fcm
+                                                            - 목표 칼로리: %d kcal
+                                                            - 활동 수준: %s
+                                                            - 운동 경험: %s
+                                                            - 식단 스타일: %s
 
-                사용자 정보:
-                - 현재 체중: %.1fkg, 목표 체중: %.1fkg
-                - 키: %.1fcm
-                - 목표 칼로리: %d kcal
-                - 활동 수준: %s
-                - 운동 경험: %s
-                - 식단 스타일: %s
+                                                            반드시 아래 JSON 구조만 반환하세요. 설명이나 마크다운 없이 JSON만:
+                                                            {
+                                                              "meal_plan": {
+                                                                "meals": [
+                                                                  {
+                                                                    "type": "BREAKFAST",
+                                                                    "name": "음식명",
+                                                                    "kcal": 숫자,
+                                                                    "protein": 숫자,
+                                                                    "carbs": 숫자,
+                                                                    "fat": 숫자,
+                                                                    "time": "HH:mm"
+                                                                  },
+                                                                  {"type": "LUNCH", "name": "음식명", "kcal": 숫자, "protein": 숫자, "carbs": 숫자, "fat": 숫자, "time": "HH:mm"},
+                                                                  {"type": "DINNER", "name": "음식명", "kcal": 숫자, "protein": 숫자, "carbs": 숫자, "fat": 숫자, "time": "HH:mm"}
+                                                                ],
+                                                                "total_kcal": 숫자
+                                                              },
+                                                              "workout_plan": {
+                                                                "workouts": [
+                                                                  {
+                                                                    "name": "운동명",
+                                                                    "category": "CHEST",
+                                                                    "sets": 숫자,
+                                                                    "reps": 숫자,
+                                                                    "duration_min": 숫자,
+                                                                    "kcal_burn": 숫자
+                                                                  }
+                                                                ],
+                                                                "total_kcal_burn": 숫자
+                                                              }
+                                                            }
 
-                반드시 아래 JSON 구조만 반환하세요. 설명이나 마크다운 없이 JSON만:
-                {
-                  "meal_plan": {
-                    "meals": [
-                      {
-                        "type": "BREAKFAST",
-                        "name": "음식명",
-                        "kcal": 숫자,
-                        "protein": 숫자,
-                        "carbs": 숫자,
-                        "fat": 숫자,
-                        "time": "HH:mm"
-                      },
-                      {"type": "LUNCH", "name": "음식명", "kcal": 숫자, "protein": 숫자, "carbs": 숫자, "fat": 숫자, "time": "HH:mm"},
-                      {"type": "DINNER", "name": "음식명", "kcal": 숫자, "protein": 숫자, "carbs": 숫자, "fat": 숫자, "time": "HH:mm"}
-                    ],
-                    "total_kcal": 숫자
-                  },
-                  "workout_plan": {
-                    "workouts": [
-                      {"name": "운동명", "duration_min": 숫자, "kcal_burn": 숫자}
-                    ],
-                    "total_kcal_burn": 숫자
-                  }
-                }
-                """,
-                profile.getWeight(), profile.getTargetWeight(), profile.getHeight(),
-                calorieTarget,
-                profile.getActivityLevel().getDescription(),
-                profile.getExerciseExperience().getDescription(),
-                profile.getDietStyle().getDescription());
+                                                            category는 반드시 다음 중 하나만 사용하세요:
+                                                            CHEST(가슴), BACK(등), LEGS(하체), SHOULDERS(어깨), ARMS(팔), CORE(코어), CARDIO(유산소), REST(휴식)
+
+                                                            유산소 운동(달리기, 걷기, 수영 등)은 sets=1, reps=duration_min으로 설정하세요.
+                                            """,
+                            profile.getWeight(), profile.getTargetWeight(), profile.getHeight(),
+                            calorieTarget,
+                            profile.getActivityLevel().getDescription(),
+                            profile.getExerciseExperience().getDescription(),
+                            profile.getDietStyle().getDescription());
     }
 
     @SuppressWarnings("unchecked")
