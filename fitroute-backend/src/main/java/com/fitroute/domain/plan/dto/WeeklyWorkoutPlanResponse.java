@@ -27,6 +27,7 @@ public class WeeklyWorkoutPlanResponse {
         private Long id;
         private String name;
         private Integer duration; // 분
+        private Integer calories;
         private String category; // CHEST, BACK 등
         private List<ExerciseDto> exercises;
 

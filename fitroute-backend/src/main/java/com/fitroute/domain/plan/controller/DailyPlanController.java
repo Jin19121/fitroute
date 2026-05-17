@@ -6,16 +6,14 @@ import com.fitroute.domain.plan.dto.PlanItemCreateRequest;
 import com.fitroute.domain.plan.dto.PlanItemResponse;
 import com.fitroute.domain.plan.dto.WeeklyWorkoutPlanResponse;
 import com.fitroute.domain.plan.service.DailyPlanService;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-
-import java.time.LocalDate;
-import java.util.List;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/plans")
@@ -30,7 +28,8 @@ public class DailyPlanController {
      * 이미 있으면 기존 계획 반환.
      */
     @PostMapping("/today/generate")
-    public ResponseEntity<DailyPlanResponse> generate(@AuthenticationPrincipal Long userId) {
+    public ResponseEntity<DailyPlanResponse> generate(
+            @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(dailyPlanService.generateTodayPlan(userId));
     }
 
@@ -40,54 +39,37 @@ public class DailyPlanController {
      * 계획이 없으면 status="NO_PLAN" 반환.
      */
     @GetMapping("/today")
-    public ResponseEntity<DailyPlanResponse> getToday(@AuthenticationPrincipal Long userId) {
+    public ResponseEntity<DailyPlanResponse> getToday(
+            @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(dailyPlanService.getTodayPlan(userId));
     }
 
     /**
      * POST /api/plans/items
      * 운동 또는 식단 항목 직접 추가
-     * 
-     * 요청 예시:
-     * {
-     * "type": "WORKOUT",
-     * "category": "CHEST",
-     * "name": "벤치프레스",
-     * "calories": 200,
-     * "sets": 4,
-     * "reps": 10
-     * }
      */
     @PostMapping("/items")
     public ResponseEntity<PlanItemResponse> addPlanItem(
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody PlanItemCreateRequest request) {
-        PlanItemResponse response = dailyPlanService.addPlanItem(userId, request);
-        return ResponseEntity.status(201).body(response);
+        return ResponseEntity.status(201)
+                .body(dailyPlanService.addPlanItem(userId, request));
     }
 
     /**
-     * GET /api/workout/plan/weekly
+     * GET /api/plans/workout/weekly
      * 주간 운동 계획 조회
-     * 
-     * 쿼리 파라미터: startDate (YYYY-MM-DD)
-     * 예: GET /api/workout/plan/weekly?startDate=2026-06-09
+     * startDate 미지정 시 이번 주 월요일부터 자동 계산
      */
-    @GetMapping("/workout/plan/weekly")
+    @GetMapping("/workout/weekly")
     public ResponseEntity<List<WeeklyWorkoutPlanResponse>> getWeeklyWorkoutPlan(
             @AuthenticationPrincipal Long userId,
-            @RequestParam(value = "startDate", required = false) String startDateStr) {
+            @RequestParam(required = false) String startDate) {
 
-        LocalDate startDate;
-        if (startDateStr == null || startDateStr.isBlank()) {
-            // startDate 미지정 시 이번 주 월요일부터
-            startDate = LocalDate.now();
-            startDate = startDate.minusDays(startDate.getDayOfWeek().getValue() - 1);
-        } else {
-            startDate = LocalDate.parse(startDateStr);
-        }
+        LocalDate start = (startDate == null || startDate.isBlank())
+                ? LocalDate.now().with(java.time.DayOfWeek.MONDAY)
+                : LocalDate.parse(startDate);
 
-        List<WeeklyWorkoutPlanResponse> weeklyPlan = dailyPlanService.getWeeklyWorkoutPlan(userId, startDate);
-        return ResponseEntity.ok(weeklyPlan);
+        return ResponseEntity.ok(dailyPlanService.getWeeklyWorkoutPlan(userId, start));
     }
 }

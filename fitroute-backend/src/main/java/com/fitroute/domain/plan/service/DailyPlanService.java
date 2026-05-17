@@ -288,19 +288,38 @@ public class DailyPlanService {
                     .findByPlanIdAndDateAndType(plan.getId(), plan.getPlanDate(), PlanItemType.WORKOUT);
 
             // 3. PlanItem을 RoutineBlock으로 변환
-            List<WeeklyWorkoutPlanResponse.RoutineBlockDto> routines = workoutItems.stream()
-                    .map(item -> WeeklyWorkoutPlanResponse.RoutineBlockDto.builder()
-                            .id(item.getId())
-                            .name(item.getEffectiveName())
-                            .duration(item.getDurationMin() != null ? item.getDurationMin() : 0)
-                            .category(item.getCategory().name())
-                            .exercises(List.of(
-                                    WeeklyWorkoutPlanResponse.RoutineBlockDto.ExerciseDto.builder()
-                                            .name(item.getEffectiveName())
-                                            .sets(item.getEffectiveSets())
-                                            .reps(item.getEffectiveReps())
-                                            .build()))
-                            .build())
+            Map<PlanItemCategory, List<PlanItem>> grouped = workoutItems.stream()
+                    .collect(Collectors.groupingBy(PlanItem::getCategory));
+
+            List<WeeklyWorkoutPlanResponse.RoutineBlockDto> routines = grouped.entrySet().stream()
+                    .map(entry -> {
+                        PlanItemCategory cat = entry.getKey();
+                        List<PlanItem> items = entry.getValue();
+
+                        // 카테고리 내 총 칼로리, 총 시간 합산
+                        int totalCalories = items.stream()
+                                .mapToInt(PlanItem::getEffectiveCalories).sum();
+                        int totalDuration = items.stream()
+                                .mapToInt(i -> i.getDurationMin() != null ? i.getDurationMin() : 0).sum();
+
+                        // 카테고리 내 운동들을 ExerciseDto로 변환
+                        List<WeeklyWorkoutPlanResponse.RoutineBlockDto.ExerciseDto> exercises = items.stream()
+                                .map(i -> WeeklyWorkoutPlanResponse.RoutineBlockDto.ExerciseDto.builder()
+                                        .name(i.getEffectiveName())
+                                        .sets(i.getEffectiveSets())
+                                        .reps(i.getEffectiveReps())
+                                        .build())
+                                .collect(Collectors.toList());
+
+                        return WeeklyWorkoutPlanResponse.RoutineBlockDto.builder()
+                                .id((long) cat.ordinal()) // 카테고리 기반 id
+                                .name(getCategoryName(cat)) // "가슴 루틴", "유산소 루틴"
+                                .duration(totalDuration)
+                                .category(cat.name())
+                                .calories(totalCalories)
+                                .exercises(exercises)
+                                .build();
+                    })
                     .collect(Collectors.toList());
 
             // 4. 요일명 계산
@@ -370,6 +389,20 @@ public class DailyPlanService {
             return PlanItemCategory.ARMS;
 
         return PlanItemCategory.CHEST;
+    }
+
+    private String getCategoryName(PlanItemCategory category) {
+        return switch (category) {
+            case CHEST -> "가슴 루틴";
+            case BACK -> "등 루틴";
+            case LEGS -> "하체 루틴";
+            case SHOULDERS -> "어깨 루틴";
+            case ARMS -> "팔 루틴";
+            case CORE -> "코어 루틴";
+            case CARDIO -> "유산소 루틴";
+            case REST -> "휴식";
+            default -> category.name();
+        };
     }
 
     private int toInt(Object value, int defaultVal) {

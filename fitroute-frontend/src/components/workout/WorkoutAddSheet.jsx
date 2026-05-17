@@ -1,6 +1,6 @@
 // src/components/workout/WorkoutAddSheet.jsx
 import { useState, useRef, useEffect } from "react";
-import apiClient from "../../api/axios";
+import { addWorkoutItem } from "../../api/workout";
 
 const CATEGORY_OPTIONS = [
     { value: "CHEST", label: "가슴" },
@@ -34,12 +34,9 @@ export default function WorkoutAddSheet({ onClose, onAdd }) {
 
         setLoading(true);
         try {
-            // 백엔드 엔드포인트 (PlanItem 추가)
-            // 추후 계획 수정 시 사용될 API
-            await apiClient.post("/api/plans/items", {
-                type: "WORKOUT",
+            await addWorkoutItem({
+                name: name.trim(),
                 category,
-                exerciseName: name.trim(),
                 sets: sets ? Number(sets) : null,
                 reps: reps ? Number(reps) : null,
                 calories: calories ? Number(calories) : 0,
