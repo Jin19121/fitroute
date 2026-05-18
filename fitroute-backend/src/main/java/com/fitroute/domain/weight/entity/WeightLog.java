@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "weight_logs", uniqueConstraints = @UniqueConstraint(columnNames = { "user_id",
-        "measured_at" }), indexes = @Index(name = "idx_weight_user_date", columnList = "user_id, measured_at"))
+        "log_date" }), indexes = @Index(name = "idx_weight_user_date", columnList = "user_id, log_date"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
@@ -22,11 +22,17 @@ public class WeightLog {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "measured_at", nullable = false)
-    private LocalDate measuredAt;
+    @Column(name = "log_date", nullable = false)
+    private LocalDate logDate;
 
     @Column(name = "weight_kg", nullable = false)
     private Float weightKg;
+
+    @Column(name = "body_fat_pct")
+    private Float bodyFatPct;
+
+    @Column(name = "muscle_mass")
+    private Float muscleMass;
 
     @Column(length = 200)
     private String note;
@@ -48,9 +54,15 @@ public class WeightLog {
         this.updatedAt = LocalDateTime.now();
     }
 
-    // 같은 날짜 재측정 시 upsert용 도메인 메서드
-    public void update(Float weightKg, String note) {
-        this.weightKg = weightKg;
-        this.note = note;
+    // ★ 수정: bodyFatPct, muscleMass 포함
+    public void update(Float weightKg, Float bodyFatPct, Float muscleMass, String note) {
+        if (weightKg != null)
+            this.weightKg = weightKg;
+        if (bodyFatPct != null)
+            this.bodyFatPct = bodyFatPct;
+        if (muscleMass != null)
+            this.muscleMass = muscleMass;
+        if (note != null)
+            this.note = note;
     }
 }

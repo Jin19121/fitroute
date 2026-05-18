@@ -5,7 +5,7 @@ const CHART_H = 120;
 const PAD = { top: 16, right: 12, bottom: 28, left: 36 };
 
 function buildPath(points, minW, maxW, minX, maxX) {
-    if (points.length < 2) return '';
+    if (points.length < 1) return '';
 
     const xRange = maxX - minX || 1;
     const wRange = maxW - minW || 1;
@@ -15,9 +15,13 @@ function buildPath(points, minW, maxW, minX, maxX) {
     const toY = (w) =>
         PAD.top + (1 - (w - minW) / wRange) * (CHART_H - PAD.top - PAD.bottom);
 
-    return points
-        .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.ts).toFixed(1)} ${toY(p.w).toFixed(1)}`)
-        .join(' ');
+    const pathParts = points.map((p, i) => {
+        const x = toX(p.ts).toFixed(1);
+        const y = toY(p.w).toFixed(1);
+        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+    });
+
+    return pathParts.join(' ');
 }
 
 export default function WeightChart({ measurements }) {
@@ -29,11 +33,10 @@ export default function WeightChart({ measurements }) {
         );
     }
 
-    // 날짜를 timestamp로 변환
     const points = measurements.map((m) => ({
         ts: new Date(m.date).getTime(),
         w: m.weightKg,
-        label: m.date.slice(8), // DD
+        label: m.date.slice(8),
     }));
 
     const weights = points.map((p) => p.w);
@@ -44,8 +47,8 @@ export default function WeightChart({ measurements }) {
     const minX = Math.min(...timestamps);
     const maxX = Math.max(...timestamps);
 
-    // Y축 눈금 (소수점 1자리)
     const wRange = maxW - minW || 1;
+    // ★ 수정: yTicks 생성 시 인덱스 기반 key 사용
     const yTicks = [minW, minW + wRange / 2, maxW].map((v) =>
         parseFloat(v.toFixed(1))
     );
@@ -58,7 +61,14 @@ export default function WeightChart({ measurements }) {
 
     const linePath = buildPath(points, minW, maxW, minX, maxX);
 
-    // 영역 채우기 경로
+    if (!linePath || linePath.trim() === '') {
+        return (
+            <div className="bg-white rounded-2xl p-4 flex items-center justify-center h-32">
+                <span className="text-[12px] text-[#b8b4ae]">데이터 처리 중 오류가 발생했어요</span>
+            </div>
+        );
+    }
+
     const firstX = toX(points[0].ts).toFixed(1);
     const lastX = toX(points[points.length - 1].ts).toFixed(1);
     const bottom = (CHART_H - PAD.bottom).toFixed(1);
@@ -74,8 +84,8 @@ export default function WeightChart({ measurements }) {
                 style={{ height: CHART_H }}
             >
                 {/* Y축 눈금 라인 */}
-                {yTicks.map((tick) => (
-                    <g key={tick}>
+                {yTicks.map((tick, idx) => (
+                    < g key={`tick-${idx}`}>  {/* ★ 수정: tick-${tick} → tick-${idx} */}
                         <line
                             x1={PAD.left}
                             y1={toY(tick)}
@@ -97,9 +107,12 @@ export default function WeightChart({ measurements }) {
                 ))}
 
                 {/* 영역 채우기 */}
+                {areaPath && (
                 <path d={areaPath} fill="#ff8c42" fillOpacity="0.08" />
+                )}
 
                 {/* 라인 */}
+                {linePath && (
                 <path
                     d={linePath}
                     fill="none"
@@ -108,10 +121,11 @@ export default function WeightChart({ measurements }) {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                 />
+                )}
 
                 {/* 데이터 포인트 + X축 라벨 */}
-                {points.map((p) => (
-                    <g key={p.ts}>
+                {points.map((p, idx) => (
+                    <g key={`point-${idx}`}>
                         <circle
                             cx={toX(p.ts)}
                             cy={toY(p.w)}
@@ -136,6 +150,6 @@ export default function WeightChart({ measurements }) {
                 <span>최저 <b className="text-[#4a7bff]">{minW.toFixed(1)}kg</b></span>
                 <span>최고 <b className="text-red-400">{maxW.toFixed(1)}kg</b></span>
             </div>
-        </div>
+        </div >
     );
 }

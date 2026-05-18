@@ -77,13 +77,11 @@ export default function useReport() {
 
     // ─── 체중 기록 ────────────────────────────────────────────────────────
 
-    const submitWeight = useCallback(async (measuredAt, weightKg, note = '') => {
-        await recordWeight({ measuredAt, weightKg, note });
-        // 기록 후 월간 데이터 갱신
+    const submitWeight = useCallback(async (logDate, weightKg, bodyFatPct, muscleMass, note = '') => {
+        await recordWeight({ logDate, weightKg, bodyFatPct, muscleMass, note });
         await fetchMonthly();
-        // 상세 카드가 열려 있으면 갱신
-        if (selectedDate === measuredAt) {
-            const data = await getDailyReport(measuredAt);
+        if (selectedDate === logDate) {
+            const data = await getDailyReport(logDate);
             setDayDetail(data);
         }
     }, [fetchMonthly, selectedDate]);

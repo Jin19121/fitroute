@@ -4,7 +4,7 @@
 // 추가 후 ActionSheet 없이 바로 완수 처리
 import { useState, useRef, useEffect } from 'react';
 import apiClient from '../../api/axios';
-import { logTodayWeight } from '../../api/weight';
+import { logTodayWeight, getTodayWeight, getLatestWeight } from '../../api/weight';
 
 // ─── 상수 ─────────────────────────────────────────────────────────────────
 const WORKOUT_CATS = [
@@ -280,19 +280,43 @@ function MealForm({ onSave, onClose }) {
 
 // ─── 체중 기록 폼 ──────────────────────────────────────────────────────────
 function WeightForm({ onClose }) {
-    const [weight, setWeight] = useState(72.0);
-    const [bodyFat, setBodyFat] = useState('');
+    const [weightKg, setWeightKg] = useState(60.0);  // 초기값은 임시
+    const [bodyFatPct, setBodyFatPct] = useState('');
+    const [muscleMass, setMuscleMass] = useState('');
+    const [note, setNote] = useState('');
     const [loading, setLoading] = useState(false);
+    const [initLoading, setInitLoading] = useState(true);  // ★ 최근 체중 로딩
 
-    const adj = delta =>
-        setWeight(v => Math.round(Math.max(20, Math.min(300, v + delta)) * 10) / 10);
+    // ★ 추가: 마운트 시 최근 체중 조회
+    useEffect(() => {
+        getTodayWeight()  // 오늘 것 먼저 확인
+            .then(data => {
+                if (data?.weightKg) {
+                    setWeightKg(data.weightKg);
+                    if (data.bodyFatPct) setBodyFatPct(String(data.bodyFatPct));
+                    if (data.muscleMass) setMuscleMass(String(data.muscleMass));
+                    if (data.note) setNote(data.note);
+                } else {
+                    // 오늘 기록 없으면 최근 기록 조회
+                    return getLatestWeight();
+                }
+            })
+            .then(data => {
+                if (data?.weightKg) setWeightKg(data.weightKg);
+            })
+            .catch(() => { })  // 실패해도 기본값 유지
+            .finally(() => setInitLoading(false));
+    }, []);
 
     const handleSubmit = async () => {
         setLoading(true);
         try {
             await logTodayWeight({
-                weight,
-                bodyFatPct: bodyFat ? Number(bodyFat) : undefined,
+                logDate: new Date().toISOString().slice(0, 10),
+                weightKg,
+                bodyFatPct: bodyFatPct ? Number(bodyFatPct) : null,
+                muscleMass: muscleMass ? Number(muscleMass) : null,
+                note: note || null,
             });
             onClose();
         } catch {
@@ -302,47 +326,113 @@ function WeightForm({ onClose }) {
         }
     };
 
+    // 로딩 중이면 스피너
+    if (initLoading) {
+        return (
+            <div className="flex items-center justify-center h-32">
+                <div className="w-5 h-5 border-2 border-[#ff8c42] border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    const adj = (setter, delta, min, max) =>
+        setter(v => Math.round(Math.max(min, Math.min(max, v + delta)) * 10) / 10);
+
     return (
-        <div className="flex flex-col gap-3">
-            <div className="flex items-baseline justify-center gap-1 my-3">
-                <span className="text-[52px] font-bold text-[#1a1a1a] leading-none tabular-nums">
-                    {weight.toFixed(1)}
-                </span>
-                <span className="text-[16px] text-[#8a8680]">kg</span>
-            </div>
+        <div className="flex flex-col gap-4">
 
-            <div className="flex justify-center gap-2 mb-1">
-                {[
-                    [-1, '−1'], [-0.1, '−0.1'], [0.1, '+0.1'], [1, '+1'],
-                ].map(([d, lbl]) => (
-                    <button
-                        key={lbl}
-                        onClick={() => adj(d)}
-                        className="w-[56px] h-[44px] rounded-xl border border-[#e5e1db] bg-[#f5f3f0] text-[12px] font-bold text-[#1a1a1a] hover:bg-[#edeae5] transition-colors"
-                    >
-                        {lbl}
-                    </button>
-                ))}
-            </div>
-
+            {/* 체중 — 스테퍼 */}
             <div>
-                <p className="text-[11px] text-[#6b6866] mb-1">체지방률 % (선택)</p>
+                <p className="text-[11px] text-[#6b6866] font-medium mb-2">
+                    체중 <span className="text-red-400">*필수</span>
+                </p>
+                <div className="flex items-center justify-between bg-[#f5f3f0] rounded-xl px-3 py-3">
+                    <div className="flex gap-1">
+                        {[[-1, '−1'], [-0.1, '−0.1']].map(([d, lbl]) => (
+                            <button
+                                key={lbl}
+                                onClick={() => adj(setWeightKg, d, 20, 300)}
+                                className="w-9 h-9 rounded-lg bg-white text-[12px] font-bold text-[#1a1a1a] shadow-sm"
+                            >
+                                {lbl}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-[28px] font-bold text-[#1a1a1a] tabular-nums">
+                            {weightKg.toFixed(1)}
+                        </span>
+                        <span className="text-[13px] text-[#8a8680]">kg</span>
+                    </div>
+                    <div className="flex gap-1">
+                        {[[0.1, '+0.1'], [1, '+1']].map(([d, lbl]) => (
+                            <button
+                                key={lbl}
+                                onClick={() => adj(setWeightKg, d, 20, 300)}
+                                className="w-9 h-9 rounded-lg bg-white text-[12px] font-bold text-[#1a1a1a] shadow-sm"
+                            >
+                                {lbl}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* 체지방률 */}
+            <div>
+                <p className="text-[11px] text-[#6b6866] font-medium mb-1">
+                    체지방률 <span className="text-[#b8b4ae]">(선택)</span>
+                </p>
+                <div className="flex items-center gap-2 bg-[#f5f3f0] rounded-xl px-3 py-2.5">
+                    <input
+                        type="number"
+                        value={bodyFatPct}
+                        onChange={e => setBodyFatPct(e.target.value)}
+                        placeholder="예: 18.5"
+                        min={0} max={70} step={0.1}
+                        className="flex-1 bg-transparent text-[13px] text-[#1a1a1a] outline-none placeholder:text-[#b8b4ae]"
+                    />
+                    <span className="text-[12px] text-[#8a8680]">%</span>
+                </div>
+            </div>
+
+            {/* 골격근량 */}
+            <div>
+                <p className="text-[11px] text-[#6b6866] font-medium mb-1">
+                    골격근량 <span className="text-[#b8b4ae]">(선택)</span>
+                </p>
+                <div className="flex items-center gap-2 bg-[#f5f3f0] rounded-xl px-3 py-2.5">
+                    <input
+                        type="number"
+                        value={muscleMass}
+                        onChange={e => setMuscleMass(e.target.value)}
+                        placeholder="예: 28.3"
+                        min={0} max={200} step={0.1}
+                        className="flex-1 bg-transparent text-[13px] text-[#1a1a1a] outline-none placeholder:text-[#b8b4ae]"
+                    />
+                    <span className="text-[12px] text-[#8a8680]">kg</span>
+                </div>
+            </div>
+
+            {/* 메모 */}
+            <div>
+                <p className="text-[11px] text-[#6b6866] font-medium mb-1">
+                    메모 <span className="text-[#b8b4ae]">(선택)</span>
+                </p>
                 <input
-                    type="number"
-                    value={bodyFat}
-                    onChange={e => setBodyFat(e.target.value)}
-                    placeholder="18.5"
-                    min={0}
-                    max={70}
-                    step={0.1}
-                    className={`${inputCls} text-center`}
+                    type="text"
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                    placeholder="오늘 컨디션은 어땠나요?"
+                    maxLength={200}
+                    className="w-full bg-[#f5f3f0] rounded-xl px-3 py-2.5 text-[13px] text-[#1a1a1a] outline-none placeholder:text-[#b8b4ae]"
                 />
             </div>
 
             <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="w-full bg-[#ff8c42] text-white font-bold py-3 rounded-xl text-[13px] disabled:opacity-60 mt-1"
+                className="w-full bg-[#ff8c42] text-white font-bold py-3 rounded-xl text-[13px] disabled:opacity-60"
             >
                 {loading ? '기록 중...' : '⚖️ 체중 기록하기'}
             </button>

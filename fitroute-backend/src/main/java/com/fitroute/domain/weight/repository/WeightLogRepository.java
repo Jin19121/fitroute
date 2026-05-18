@@ -13,21 +13,21 @@ import java.util.Optional;
 public interface WeightLogRepository extends JpaRepository<WeightLog, Long> {
 
         // upsert 판단용 — 날짜별 단건 조회
-        Optional<WeightLog> findByUserIdAndMeasuredAt(Long userId, LocalDate measuredAt);
+        Optional<WeightLog> findByUserIdAndLogDate(Long userId, LocalDate logDate);
 
         // 월별 체중 목록 — 리포트 캘린더/차트용
-        List<WeightLog> findByUserIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(
+        List<WeightLog> findByUserIdAndLogDateBetweenOrderByLogDateAsc(
                         Long userId, LocalDate from, LocalDate to);
 
         // 사용자 최신 체중 한 건 — 대시보드 체중 카드용
-        Optional<WeightLog> findFirstByUserIdOrderByMeasuredAtDesc(Long userId);
+        Optional<WeightLog> findFirstByUserIdOrderByLogDateDesc(Long userId);
 
         // 기간 내 첫 번째 체중 — 월간 변화량 계산용 (시작점)
         @Query("""
                         SELECT wl FROM WeightLog wl
                         WHERE wl.userId = :userId
-                          AND wl.measuredAt BETWEEN :from AND :to
-                        ORDER BY wl.measuredAt ASC
+              AND wl.logDate BETWEEN :from AND :to
+            ORDER BY wl.logDate ASC
                         LIMIT 1
                         """)
         Optional<WeightLog> findFirstInRange(

@@ -63,11 +63,11 @@ public class ReportService {
                             .add(item));
         }
 
-        // ★ 수정: measuredAt 컬럼명 사용 (WeightLog 엔티티와 일치)
+        // ★ 수정: logDate 컬럼명 사용 (WeightLog 엔티티와 일치)
         List<WeightLog> weightLogs = weightLogRepository
-                .findByUserIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(userId, from, to);
+                        .findByUserIdAndLogDateBetweenOrderByLogDateAsc(userId, from, to);
         Map<LocalDate, WeightLog> weightByDate = weightLogs.stream()
-                .collect(Collectors.toMap(WeightLog::getMeasuredAt, wl -> wl));
+                        .collect(Collectors.toMap(WeightLog::getLogDate, wl -> wl));
 
         UserProfile profile = userProfileRepository.findByUserId(userId).orElse(null);
 
@@ -137,9 +137,9 @@ public class ReportService {
                 ? planItemRepository.findByDailyPlanId(plan.getId())
                 : List.of();
 
-        // ★ 수정: measuredAt 컬럼명 사용
+        // ★ 수정: logDate 컬럼명 사용
         WeightLog wl = weightLogRepository
-                .findByUserIdAndMeasuredAt(userId, date).orElse(null);
+                        .findByUserIdAndLogDate(userId, date).orElse(null);
 
         return DailyReportResponse.builder()
                 .date(date)
@@ -339,15 +339,15 @@ public class ReportService {
         // D-Day: 첫 측정일 + 목표 기간 - 오늘
         long daysToGoal = 0;
         if (profile != null && profile.getTargetPeriod() != null && !weightLogs.isEmpty()) {
-            // ★ 수정: measuredAt 사용
-            LocalDate endDate = weightLogs.get(0).getMeasuredAt()
+                // ★ 수정: logDate 사용
+                LocalDate endDate = weightLogs.get(0).getLogDate()
                     .plusWeeks(profile.getTargetPeriod());
             daysToGoal = Math.max(0, ChronoUnit.DAYS.between(LocalDate.now(), endDate));
         }
 
         List<MonthlyReportResponse.WeightPoint> points = weightLogs.stream()
                 .map(wl -> MonthlyReportResponse.WeightPoint.builder()
-                        .date(wl.getMeasuredAt()) // ★ 수정: measuredAt 사용
+                                        .date(wl.getLogDate()) // ★ 수정: logDate 사용
                         .weightKg(wl.getWeightKg())
                         .build())
                 .toList();

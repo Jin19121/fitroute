@@ -17,48 +17,111 @@ const FILTERS = [
 
 // ─── 체중 기록 모달 ────────────────────────────────────────────────────────
 
+// WeightModal 컴포넌트 전체 교체
 function WeightModal({ date, onSubmit, onClose }) {
-    const [kg, setKg] = useState('');
+    const [weightKg, setWeightKg] = useState('');
+    const [bodyFatPct, setBodyFatPct] = useState('');
+    const [muscleMass, setMuscleMass] = useState('');
     const [note, setNote] = useState('');
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async () => {
-        const val = parseFloat(kg);
-        if (!kg || isNaN(val) || val < 20 || val > 300) return;
+        const val = parseFloat(weightKg);
+        if (!weightKg || isNaN(val) || val < 20 || val > 300) return;
         setLoading(true);
         try {
-            await onSubmit(date, val, note);
+            await onSubmit(
+                date,
+                val,
+                bodyFatPct ? parseFloat(bodyFatPct) : null,
+                muscleMass ? parseFloat(muscleMass) : null,
+                note
+            );
             onClose();
         } finally {
             setLoading(false);
         }
     };
 
+    // 스테퍼 입력 컴포넌트
+    const StepInput = ({ label, value, onChange, unit, min, max, step = 0.1, required = false }) => (
+        <div className="flex items-center justify-between py-3 border-b border-[#f0ece5] last:border-0">
+            <div>
+                <span className="text-[13px] font-medium text-[#1a1a1a]">{label}</span>
+                {required && <span className="text-red-400 text-[10px] ml-1">*필수</span>}
+            </div>
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => {
+                        const cur = parseFloat(value) || 0;
+                        const next = Math.max(min, parseFloat((cur - step).toFixed(1)));
+                        onChange(String(next));
+                    }}
+                    className="w-7 h-7 rounded-full bg-[#f0ece5] flex items-center justify-center text-[16px] font-bold text-[#8a8680]"
+                >
+                    −
+                </button>
+                <div className="flex items-center gap-1 min-w-[72px] justify-center">
+                    <input
+                        type="number"
+                        value={value}
+                        onChange={e => onChange(e.target.value)}
+                        min={min} max={max} step={step}
+                        className="w-14 text-center text-[14px] font-bold text-[#1a1a1a] border-0 outline-none bg-transparent"
+                        placeholder="-"
+                    />
+                    <span className="text-[11px] text-[#8a8680]">{unit}</span>
+                </div>
+                <button
+                    onClick={() => {
+                        const cur = parseFloat(value) || 0;
+                        const next = Math.min(max, parseFloat((cur + step).toFixed(1)));
+                        onChange(String(next));
+                    }}
+                    className="w-7 h-7 rounded-full bg-[#f0ece5] flex items-center justify-center text-[16px] font-bold text-[#8a8680]"
+                >
+                    +
+                </button>
+            </div>
+        </div>
+    );
+
     return (
         <>
             <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl px-5 pt-4 pb-10"
-                style={{ animation: 'slideUp 0.22s ease-out' }}>
+            <div
+                className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl px-5 pt-4 pb-10"
+                style={{ animation: 'slideUp 0.22s ease-out' }}
+            >
                 <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
-                <div className="w-9 h-1 bg-[#d5d0ca] rounded-full mx-auto mb-5" />
+                <div className="w-9 h-1 bg-[#d5d0ca] rounded-full mx-auto mb-4" />
+
                 <p className="text-[14px] font-bold text-[#1a1a1a] mb-4">
                     {date?.slice(5).replace('-', '/')} 체중 기록
                 </p>
-                <div className="flex flex-col gap-3">
-                    <div>
-                        <label className="text-[11px] text-[#8a8680] mb-1 block">체중 (kg)</label>
-                        <input
-                            type="number"
-                            value={kg}
-                            onChange={e => setKg(e.target.value)}
-                            placeholder="예: 67.5"
-                            min={20} max={300} step={0.1}
-                            className="w-full border border-[#edeae5] rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-[#ff8c42]"
-                            autoFocus
-                        />
-                    </div>
-                    <div>
-                        <label className="text-[11px] text-[#8a8680] mb-1 block">메모 (선택)</label>
+
+                <div className="flex flex-col">
+                    {/* 체중 — 필수 */}
+                    <StepInput
+                        label="체중" unit="kg" required
+                        value={weightKg} onChange={setWeightKg}
+                        min={20} max={300} step={0.1}
+                    />
+                    {/* 체지방률 — 선택 */}
+                    <StepInput
+                        label="체지방률" unit="%"
+                        value={bodyFatPct} onChange={setBodyFatPct}
+                        min={0} max={70} step={0.1}
+                    />
+                    {/* 골격근량 — 선택 */}
+                    <StepInput
+                        label="골격근량" unit="kg"
+                        value={muscleMass} onChange={setMuscleMass}
+                        min={0} max={200} step={0.1}
+                    />
+                    {/* 메모 — 선택 */}
+                    <div className="py-3">
+                        <p className="text-[13px] font-medium text-[#1a1a1a] mb-2">메모</p>
                         <input
                             type="text"
                             value={note}
@@ -68,14 +131,15 @@ function WeightModal({ date, onSubmit, onClose }) {
                             className="w-full border border-[#edeae5] rounded-xl px-3 py-2.5 text-[13px] outline-none focus:border-[#ff8c42]"
                         />
                     </div>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading || !kg}
-                        className="w-full py-3 rounded-2xl text-[14px] font-semibold text-white bg-[#ff8c42] disabled:bg-[#d5d0ca] mt-1"
-                    >
-                        {loading ? '저장 중...' : '저장'}
-                    </button>
                 </div>
+
+                <button
+                    onClick={handleSubmit}
+                    disabled={loading || !weightKg}
+                    className="w-full py-3 rounded-2xl text-[14px] font-semibold text-white bg-[#ff8c42] disabled:bg-[#d5d0ca] mt-2"
+                >
+                    {loading ? '저장 중...' : '저장'}
+                </button>
             </div>
         </>
     );

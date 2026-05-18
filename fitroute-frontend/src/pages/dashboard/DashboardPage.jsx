@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import apiClient from "../../api/axios";
 import PlanItemActionSheet from "../../components/PlanItemActionSheet";
 import BottomNav from '../../components/common/BottomNav';
+import { getLatestWeight } from "../../api/weight";
 
 // ─── API 계층 ─────────────────────────────────────
 const fetchDashboard = () =>
@@ -65,14 +66,20 @@ const POLL_MS = 3000;
 
 function useDashboard() {
     const [data, setData] = useState(null);
+    const [latestWeightKg, setLatestWeightKg] = useState(null);  // ★ 추가
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const poll = useRef(null);
 
     const load = useCallback(async () => {
         try {
-            const result = await fetchDashboard();
+            // ★ 대시보드 + 최근 체중 병렬 조회
+            const [result, latestWeight] = await Promise.all([
+                fetchDashboard(),
+                getLatestWeight().catch(() => null),
+            ]);
             setData(result);
+            setLatestWeightKg(latestWeight?.weightKg ?? null);
             setError(null);
             if (result.planStatus === "GENERATING") {
                 poll.current = setTimeout(load, POLL_MS);
@@ -89,7 +96,6 @@ function useDashboard() {
         return () => clearTimeout(poll.current);
     }, [load]);
 
-    // ↓ 추가 — 다른 페이지에서 돌아올 때 재조회
     useEffect(() => {
         const onVisible = () => {
             if (document.visibilityState === 'visible') load();
@@ -108,7 +114,7 @@ function useDashboard() {
         }
     }, [load]);
 
-    return { data, loading, error, applyAction, reload: load };
+    return { data, latestWeightKg, loading, error, applyAction, reload: load };  // ★ latestWeightKg 반환
 }
 
 // ─── Sub-components ────────────────────────────────
@@ -251,7 +257,7 @@ function WorkoutSection({ workouts, onTap }) {
 }
 
 export default function DashboardPage() {
-    const { data, loading, error, applyAction } = useDashboard();
+    const { data, latestWeightKg, loading, error, applyAction } = useDashboard();  // ★ latestWeightKg 추가
     const [activeItem, setActiveItem] = useState(null);
 
     if (loading) return (
@@ -304,6 +310,11 @@ export default function DashboardPage() {
         ? Math.min(1, today.consumedCalories / data.targetCaloriesPerDay) : 0;
     const r = 26, circ = 2 * Math.PI * r;
 
+    const currentWeight = latestWeightKg ?? data.currentWeight;
+    const weightToLose = currentWeight != null && data.goalWeight != null
+        ? Math.max(0, currentWeight - data.goalWeight)
+        : data.weightToLose;
+
     return (
         <div className="flex flex-col h-full bg-[#f5f3f0] relative">
             {/* Header */}
@@ -324,7 +335,8 @@ export default function DashboardPage() {
                 <div className="flex gap-2 mt-3">
                     {[
                         { n: data.goalWeight?.toFixed(1), u: "kg", l: "목표 체중" },
-                        { n: `-${data.weightToLose?.toFixed(1)}`, u: "kg", l: "남은 감량", c: "#ff8c42" },
+                        // ★ 수정: weightToLose 계산값 사용
+                        { n: `-${weightToLose?.toFixed(1)}`, u: "kg", l: "남은 감량", c: "#ff8c42" },
                         { n: data.targetPeriodWeeks, u: "주", l: "목표 기간" },
                     ].map(({ n, u, l, c }) => (
                         <div key={l} className="flex-1 bg-white/[0.07] rounded-xl p-2 text-center">

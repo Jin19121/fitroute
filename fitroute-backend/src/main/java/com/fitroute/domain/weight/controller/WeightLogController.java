@@ -20,10 +20,7 @@ public class WeightLogController {
 
     private final WeightLogService weightLogService;
 
-    /**
-     * POST /api/weight-logs
-     * 체중 기록 (같은 날짜면 upsert)
-     */
+    /** POST /api/weight-logs — 체중 기록 (upsert) */
     @PostMapping
     public ResponseEntity<WeightLogResponse> record(
             @Valid @RequestBody WeightLogRequest req,
@@ -31,10 +28,25 @@ public class WeightLogController {
         return ResponseEntity.ok(weightLogService.recordWeight(userId, req));
     }
 
-    /**
-     * GET /api/weight-logs?year=2025&month=6
-     * 월별 체중 목록 조회
-     */
+    /** GET /api/weight-logs/today — 오늘 체중 조회 */
+    @GetMapping("/today")
+    public ResponseEntity<WeightLogResponse> getToday(
+            @AuthenticationPrincipal Long userId) {
+        return weightLogService.getTodayWeight(userId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
+    }
+
+    /** GET /api/weight-logs/latest — 가장 최근 체중 1건 */
+    @GetMapping("/latest")
+    public ResponseEntity<WeightLogResponse> getLatest(
+            @AuthenticationPrincipal Long userId) {
+        return weightLogService.getLatestWeight(userId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
+    }
+
+    /** GET /api/weight-logs?year=2025&month=6 — 월별 체중 목록 */
     @GetMapping
     public ResponseEntity<List<WeightLogResponse>> getMonthly(
             @RequestParam int year,
@@ -43,10 +55,7 @@ public class WeightLogController {
         return ResponseEntity.ok(weightLogService.getMonthlyLogs(userId, year, month));
     }
 
-    /**
-             * DELETE /api/weight-logs/{date}
-     * 특정 날짜 체중 삭제
-     */
+    /** DELETE /api/weight-logs/{date} — 특정 날짜 체중 삭제 */
     @DeleteMapping("/{date}")
     public ResponseEntity<Void> delete(
             @PathVariable LocalDate date,

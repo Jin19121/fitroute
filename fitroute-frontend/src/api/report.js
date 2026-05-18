@@ -26,7 +26,7 @@ export const getDailyReport = (date) =>
  */
 export const recordWeight = (payload) =>
     apiClient
-        .post('/api/weight-logs', payload)
+        .post('/api/weight-logs', payload)  // payload 그대로 전달
         .then(r => r.data);
 
 /**

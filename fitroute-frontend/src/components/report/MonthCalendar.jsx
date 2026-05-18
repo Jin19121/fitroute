@@ -1,6 +1,39 @@
 // src/components/report/MonthCalendar.jsx
 import { useMemo } from 'react';
 
+// ─── 상수 정의 ────────────────────────────────────────────────────────────
+
+const STATUS_LABEL = {
+    FULL: { text: '완수', cls: 'bg-[#eef3ff] text-[#2a5cc5]' },
+    PART: { text: '일부완수', cls: 'bg-[#fef9ee] text-[#b45309]' },
+    NONE: { text: '미실행', cls: 'bg-[#f0ece5] text-[#8a8680]' },
+    NO_PLAN: { text: '계획없음', cls: 'bg-[#f0ece5] text-[#8a8680]' },
+    ACHIEVED: { text: '달성', cls: 'bg-[#edfaf3] text-[#1a6b40]' },
+    EXCEEDED: { text: '초과', cls: 'bg-[#fef9ee] text-[#b45309]' },
+    NO_RECORD: { text: '미기록', cls: 'bg-[#f0ece5] text-[#8a8680]' },
+};
+
+// ★ 추가: DAY_HEADERS 상수
+const DAY_HEADERS = ['일', '월', '화', '수', '목', '금', '토'];
+
+// ★ 추가: LEGENDS 상수
+const LEGENDS = {
+    WORKOUT: [
+        { color: 'bg-[#4a7bff]', label: '완료' },
+        { color: 'bg-[#f59e0b]', label: '일부' },
+        { color: 'bg-[#e5e1db]', label: '안함' },
+    ],
+    DIET: [
+        { color: 'bg-[#1a9e75]', label: '목표달성' },
+        { color: 'bg-[#f59e0b]', label: '초과' },
+        { color: 'bg-[#e5e1db]', label: '미기록' },
+    ],
+    WEIGHT: [
+        { color: 'bg-[#ff8c42]', label: '측정일' },
+        { color: 'bg-[#e5e1db]', label: '미측정' },
+    ],
+};
+
 // ─── 날짜별 셀 스타일 계산 ────────────────────────────────────────────────
 
 function getCellStyle(filter, dayData) {
@@ -11,7 +44,7 @@ function getCellStyle(filter, dayData) {
         if (s === 'FULL') return { bg: 'bg-[#4a7bff]', text: 'text-white' };
         if (s === 'PART') return { bg: 'bg-[#f59e0b]', text: 'text-white' };
         if (s === 'NONE') return { bg: 'bg-[#e5e1db]', text: 'text-[#8a8680]' };
-        return { bg: '', text: 'text-[#1a1a1a]' }; // NO_PLAN
+        return { bg: '', text: 'text-[#1a1a1a]' };
     }
 
     if (filter === 'DIET') {
@@ -19,7 +52,7 @@ function getCellStyle(filter, dayData) {
         if (s === 'ACHIEVED') return { bg: 'bg-[#1a9e75]', text: 'text-white' };
         if (s === 'EXCEEDED') return { bg: 'bg-[#f59e0b]', text: 'text-white' };
         if (s === 'NO_RECORD') return { bg: 'bg-[#e5e1db]', text: 'text-[#8a8680]' };
-        return { bg: '', text: 'text-[#1a1a1a]' }; // NO_PLAN
+        return { bg: '', text: 'text-[#1a1a1a]' };
     }
 
     if (filter === 'WEIGHT') {
@@ -51,53 +84,30 @@ function getSubValue(filter, dayData) {
     return null;
 }
 
-// ─── 범례 ─────────────────────────────────────────────────────────────────
-
-const LEGENDS = {
-    WORKOUT: [
-        { color: 'bg-[#4a7bff]', label: '완료' },
-        { color: 'bg-[#f59e0b]', label: '일부' },
-        { color: 'bg-[#e5e1db]', label: '안함' },
-    ],
-    DIET: [
-        { color: 'bg-[#1a9e75]', label: '목표달성' },
-        { color: 'bg-[#f59e0b]', label: '초과' },
-        { color: 'bg-[#e5e1db]', label: '미기록' },
-    ],
-    WEIGHT: [
-        { color: 'bg-[#ff8c42]', label: '측정일' },
-        { color: 'bg-[#e5e1db]', label: '미측정' },
-    ],
-};
-
-const DAY_HEADERS = ['일', '월', '화', '수', '목', '금', '토'];
-
 // ─── 메인 컴포넌트 ────────────────────────────────────────────────────────
 
 export default function MonthCalendar({
     year,
     month,
-    days,          // MonthlyReportResponse.days 배열
+    days,
     filter,
     selectedDate,
     onSelectDate,
 }) {
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    // days 배열을 date 키로 맵핑
     const dayMap = useMemo(() => {
         if (!days) return {};
         return Object.fromEntries(days.map(d => [d.date, d]));
     }, [days]);
 
-    // 달력 그리드 — 1일의 요일 기준으로 앞에 빈 셀 삽입
-    const firstDow = new Date(year, month - 1, 1).getDay(); // 0=일 ~ 6=토
+    const firstDow = new Date(year, month - 1, 1).getDay();
     const daysInMonth = new Date(year, month, 0).getDate();
 
-    const cells = [
-        ...Array(firstDow).fill(null),          // 빈 셀
-        ...Array.from({ length: daysInMonth }, (_, i) => i + 1), // 1~말일
-    ];
+    const cells = Array.from({ length: firstDow + daysInMonth }, (_, i) => {
+        if (i < firstDow) return null;
+        return i - firstDow + 1;
+    });
 
     return (
         <div className="flex flex-col gap-3">
@@ -117,7 +127,13 @@ export default function MonthCalendar({
             {/* 날짜 그리드 */}
             <div className="grid grid-cols-7 gap-y-2">
                 {cells.map((day, idx) => {
-                    if (!day) return <div key={`empty-${idx}`} />;
+                    const cellKey = day === null
+                        ? `empty-${idx}`
+                        : `${year}-${month}-${day}`;
+
+                    if (!day) {
+                        return <div key={cellKey} />;
+                    }
 
                     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const dayData = dayMap[dateStr];
@@ -128,7 +144,7 @@ export default function MonthCalendar({
 
                     return (
                         <button
-                            key={dateStr}
+                            key={cellKey}
                             onClick={() => onSelectDate(dateStr)}
                             className="flex flex-col items-center gap-0.5"
                         >

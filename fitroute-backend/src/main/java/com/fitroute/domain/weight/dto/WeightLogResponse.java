@@ -11,14 +11,14 @@ import java.time.LocalDate;
 public class WeightLogResponse {
 
     private Long id;
-    private LocalDate measuredAt;
+    private LocalDate logDate;
     private Float weightKg;
     private String note;
 
     public static WeightLogResponse from(WeightLog log) {
         return WeightLogResponse.builder()
                 .id(log.getId())
-                .measuredAt(log.getMeasuredAt())
+                .logDate(log.getLogDate())
                 .weightKg(log.getWeightKg())
                 .note(log.getNote())
                 .build();
