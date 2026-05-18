@@ -516,7 +516,10 @@ export default function QuickAddFab({ onDataSaved }) {
             {menuOpen && (
                 <div
                     className="fixed right-4 z-30 flex flex-col gap-2"
-                    style={{ bottom: 82, animation: 'fabMenuIn 0.15s ease-out' }}
+                    style={{
+                        bottom: 82 + 52 + 12,  // ★ 수정: FAB높이(52) + 여백(12) 만큼 위로
+                        animation: 'fabMenuIn 0.15s ease-out'
+                    }}
                 >
                     {FAB_ITEMS.map(({ type, emoji, label, color }) => (
                         <div
@@ -539,7 +542,7 @@ export default function QuickAddFab({ onDataSaved }) {
                 </div>
             )}
 
-            {/* FAB 버튼 */}
+            {/* FAB 버튼 — 위치 유지 */}
             <button
                 onClick={() => setMenuOpen(o => !o)}
                 className="fixed right-4 z-30 w-[52px] h-[52px] bg-[#4a7bff] rounded-full flex items-center justify-center shadow-lg shadow-[#4a7bff]/40"

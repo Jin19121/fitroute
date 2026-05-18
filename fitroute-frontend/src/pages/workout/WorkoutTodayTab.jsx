@@ -266,14 +266,14 @@ export default function WorkoutTodayTab() {
             </div>
 
             {/* FAB 버튼 */}
-            <div className="fixed bottom-20 right-5">
+            {/* <div className="fixed bottom-20 right-5">
                 <button
                     onClick={() => setShowAddSheet(true)}
                     className="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-600 transition-colors text-xl"
                 >
                     +
                 </button>
-            </div>
+            </div> */}
 
             {/* Action Sheet */}
             <PlanItemActionSheet
