@@ -2,7 +2,6 @@
 package com.fitroute.domain.plan.service;
 
 import com.fitroute.domain.plan.dto.PlanStatusResponse;
-import com.fitroute.domain.plan.entity.Plan;
 import com.fitroute.domain.plan.repository.PlanRepository;
 import com.fitroute.domain.plan.entity.PlanStatus;
 import lombok.RequiredArgsConstructor;

@@ -1,11 +1,10 @@
 // src/components/common/QuickAddFab.jsx
 // 빠른 추가 FAB — 식단/운동/체중
 // 추가된 항목은 기본 COMPLETED 상태 (이미 실행한 내용이므로)
-// 추가 후에도 PlanItemActionSheet를 통해 미실행/수정/되돌리기 가능
+// 추가 후 ActionSheet 없이 바로 완수 처리
 import { useState, useRef, useEffect } from 'react';
 import apiClient from '../../api/axios';
 import { logTodayWeight } from '../../api/weight';
-import PlanItemActionSheet from '../PlanItemActionSheet';
 
 // ─── 상수 ─────────────────────────────────────────────────────────────────
 const WORKOUT_CATS = [
@@ -81,6 +80,7 @@ function WorkoutForm({ onSave, onClose }) {
     const [sets, setSets] = useState('');
     const [reps, setReps] = useState('');
     const [kcal, setKcal] = useState('');
+    const [duration, setDuration] = useState('');  // 시간(분)
     const [loading, setLoading] = useState(false);
     const nameRef = useRef(null);
 
@@ -92,16 +92,18 @@ function WorkoutForm({ onSave, onClose }) {
 
         setLoading(true);
         try {
-            const res = await apiClient.post('/api/plans/items', {
+            await apiClient.post('/api/plans/items', {
                 type: 'WORKOUT',
                 category: cat,
                 name: name.trim(),
                 calories: Number(kcal),
                 sets: sets ? Number(sets) : undefined,
                 reps: reps ? Number(reps) : undefined,
+                durationMin: duration ? Number(duration) : undefined,
                 status: 'COMPLETED',  // 빠른 추가 = 이미 실행 완료
             });
-            onSave(res.data);
+            // ← ActionSheet 없이 바로 완수 처리 후 목록 새로고침
+            onSave();
             onClose();
         } catch {
             alert('운동 추가에 실패했어요. 다시 시도해 주세요.');
@@ -135,11 +137,12 @@ function WorkoutForm({ onSave, onClose }) {
                 />
             </div>
 
+            {/* 세트 / 횟수 / 시간 */}
             <div className="flex gap-2">
                 {[
                     { label: '세트', val: sets, set: setSets, ph: '4' },
                     { label: '횟수', val: reps, set: setReps, ph: '10' },
-                    { label: 'kcal', val: kcal, set: setKcal, ph: '200' },
+                    { label: '시간(분)', val: duration, set: setDuration, ph: '30' },
                 ].map(({ label, val, set, ph }) => (
                     <div key={label} className="flex-1">
                         <p className="text-[11px] text-[#6b6866] mb-1">{label}</p>
@@ -153,6 +156,19 @@ function WorkoutForm({ onSave, onClose }) {
                         />
                     </div>
                 ))}
+            </div>
+
+            {/* kcal — 별도 한 줄 (눈에 잘 띄도록) */}
+            <div>
+                <p className="text-[11px] text-[#6b6866] mb-1">소모 칼로리 (kcal)</p>
+                <input
+                    type="number"
+                    value={kcal}
+                    onChange={e => setKcal(e.target.value)}
+                    placeholder="예: 200"
+                    min={0}
+                    className={inputCls}
+                />
             </div>
 
             <button
@@ -185,7 +201,7 @@ function MealForm({ onSave, onClose }) {
 
         setLoading(true);
         try {
-            const res = await apiClient.post('/api/plans/items', {
+            await apiClient.post('/api/plans/items', {
                 type: 'MEAL',
                 category: mealType,
                 name: name.trim(),
@@ -195,7 +211,8 @@ function MealForm({ onSave, onClose }) {
                 fat: fat ? Number(fat) : 0,
                 status: 'COMPLETED',  // 빠른 추가 = 이미 먹은 것
             });
-            onSave(res.data);
+            // ← ActionSheet 없이 바로 완수 처리 후 목록 새로고침
+            onSave();
             onClose();
         } catch {
             alert('식단 추가에 실패했어요. 다시 시도해 주세요.');
@@ -365,7 +382,6 @@ const FAB_ITEMS = [
 export default function QuickAddFab({ onDataSaved }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [sheet, setSheet] = useState(null);   // 'workout' | 'meal' | 'weight'
-    const [savedItem, setSavedItem] = useState(null);  // ActionSheet 후속 편집용
 
     const openSheet = type => {
         setMenuOpen(false);
@@ -375,8 +391,7 @@ export default function QuickAddFab({ onDataSaved }) {
     const closeSheet = () => setSheet(null);
 
     // 저장 완료 콜백 — 대시보드/운동 페이지 재조회 트리거
-    const handleSave = item => {
-        if (item) setSavedItem(item);  // 추가된 아이템을 ActionSheet로 바로 수정 가능
+    const handleSave = () => {
         onDataSaved?.();
     };
 
@@ -463,21 +478,8 @@ export default function QuickAddFab({ onDataSaved }) {
             )}
             {sheet === 'weight' && (
                 <BottomSheet title={SHEET_TITLES.weight} onClose={closeSheet}>
-                    <WeightForm onClose={() => { handleSave(null); closeSheet(); }} />
+                    <WeightForm onClose={() => { handleSave(); closeSheet(); }} />
                 </BottomSheet>
-            )}
-
-            {/* 추가 직후 바로 편집할 수 있는 ActionSheet (선택적) */}
-            {savedItem && (
-                <PlanItemActionSheet
-                    item={savedItem}
-                    onClose={() => setSavedItem(null)}
-                    onApply={async (itemId, payload) => {
-                        await apiClient.patch(`/api/plans/items/${itemId}/action`, payload);
-                        setSavedItem(null);
-                        onDataSaved?.();
-                    }}
-                />
             )}
         </>
     );
