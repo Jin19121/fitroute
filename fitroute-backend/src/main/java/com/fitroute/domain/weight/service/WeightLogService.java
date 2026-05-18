@@ -9,8 +9,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDate;
-import java.util.Optional;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -21,51 +23,63 @@ public class WeightLogService {
     private final WeightLogRepository weightLogRepository;
 
     /**
-     * 오늘 체중 기록 — 이미 있으면 업데이트, 없으면 신규 생성 (upsert)
+     * 체중 기록.
+     * 같은 날짜 데이터가 이미 존재하면 업데이트(upsert), 없으면 새로 생성.
      */
     @Transactional
-    public WeightLogResponse logTodayWeight(Long userId, WeightLogRequest req) {
-        LocalDate today = LocalDate.now();
-
-        WeightLog weightLog = weightLogRepository // ← log → weightLog로 변경
-                .findByUserIdAndLogDate(userId, today)
+    public WeightLogResponse recordWeight(Long userId, WeightLogRequest req) {
+        WeightLog result = weightLogRepository
+                .findByUserIdAndMeasuredAt(userId, req.getMeasuredAt())
                 .map(existing -> {
-                    existing.update(req.getWeight(), req.getBodyFatPct(), req.getMuscleMass());
+                    existing.update(req.getWeightKg(), req.getNote());
+                    log.info("[WeightLog] Updated - userId={}, date={}, weight={}kg",
+                            userId, req.getMeasuredAt(), req.getWeightKg());
                     return existing;
                 })
-                .orElseGet(() -> weightLogRepository.save(
-                        WeightLog.builder()
-                                .userId(userId)
-                                .logDate(today)
-                                .weight(req.getWeight())
-                                .bodyFatPct(req.getBodyFatPct())
-                                .muscleMass(req.getMuscleMass())
-                                .build()));
+                .orElseGet(() -> {
+                    WeightLog newLog = WeightLog.builder()
+                            .userId(userId)
+                            .measuredAt(req.getMeasuredAt())
+                            .weightKg(req.getWeightKg())
+                            .note(req.getNote())
+                            .build();
+                    log.info("[WeightLog] Created - userId={}, date={}, weight={}kg",
+                            userId, req.getMeasuredAt(), req.getWeightKg());
+                    return weightLogRepository.save(newLog);
+                });
 
-        Float change = calculateChange(userId, today, weightLog.getWeight());
-
-        log.info("[WeightLog] Saved - userId={}, date={}, weight={}", // ← 이제 SLF4J log
-                userId, today, weightLog.getWeight());
-
-        return WeightLogResponse.from(weightLog, change);
+        return WeightLogResponse.from(result);
     }
 
     /**
-     * 오늘 체중 조회 (없으면 null)
+     * 월별 체중 목록 조회.
+     * 리포트 페이지 캘린더 및 추이 차트에서 사용.
      */
-    public Optional<WeightLogResponse> getTodayWeight(Long userId) {
+    public List<WeightLogResponse> getMonthlyLogs(Long userId, int year, int month) {
+        LocalDate from = LocalDate.of(year, month, 1);
+        LocalDate to = from.withDayOfMonth(from.lengthOfMonth());
+
         return weightLogRepository
-                .findByUserIdAndLogDate(userId, LocalDate.now())
-                .map(log -> {
-                    Float change = calculateChange(userId, LocalDate.now(), log.getWeight());
-                    return WeightLogResponse.from(log, change);
-                });
+                .findByUserIdAndMeasuredAtBetweenOrderByMeasuredAtAsc(userId, from, to)
+                .stream()
+                .map(WeightLogResponse::from)
+                .collect(Collectors.toList());
     }
 
-    private Float calculateChange(Long userId, LocalDate date, Float currentWeight) {
-        return weightLogRepository
-                .findPreviousLog(userId, date)
-                .map(prev -> currentWeight - prev.getWeight())
-                .orElse(null);
+    /**
+     * 특정 날짜 체중 삭제.
+     * 본인 데이터 여부를 검증 후 삭제.
+     */
+    @Transactional
+    public void deleteWeight(Long userId, LocalDate date) {
+        weightLogRepository
+                .findByUserIdAndMeasuredAt(userId, date)
+                .ifPresent(existing -> {
+                    if (!existing.getUserId().equals(userId)) {
+                        throw new SecurityException("본인의 체중 데이터만 삭제할 수 있습니다.");
+                    }
+                    weightLogRepository.delete(existing);
+                    log.info("[WeightLog] Deleted - userId={}, date={}", userId, date);
+                });
     }
 }

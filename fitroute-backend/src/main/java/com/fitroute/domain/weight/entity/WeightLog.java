@@ -7,9 +7,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "weight_logs", indexes = {
-        @Index(name = "idx_weight_logs_user_date", columnList = "user_id, log_date")
-}, uniqueConstraints = @UniqueConstraint(columnNames = { "user_id", "log_date" }))
+@Table(name = "weight_logs", uniqueConstraints = @UniqueConstraint(columnNames = { "user_id",
+        "measured_at" }), indexes = @Index(name = "idx_weight_user_date", columnList = "user_id, measured_at"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
@@ -23,32 +22,35 @@ public class WeightLog {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "log_date", nullable = false)
-    private LocalDate logDate;
+    @Column(name = "measured_at", nullable = false)
+    private LocalDate measuredAt;
 
-    @Column(nullable = false)
-    private Float weight; // kg
+    @Column(name = "weight_kg", nullable = false)
+    private Float weightKg;
 
-    @Column(name = "body_fat_pct")
-    private Float bodyFatPct; // 체지방률 (선택)
+    @Column(length = 200)
+    private String note;
 
-    @Column(name = "muscle_mass")
-    private Float muscleMass; // 근육량 kg (선택)
-
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
-    public void update(Float weight, Float bodyFatPct, Float muscleMass) {
-        if (weight != null)
-            this.weight = weight;
-        if (bodyFatPct != null)
-            this.bodyFatPct = bodyFatPct;
-        if (muscleMass != null)
-            this.muscleMass = muscleMass;
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    // 같은 날짜 재측정 시 upsert용 도메인 메서드
+    public void update(Float weightKg, String note) {
+        this.weightKg = weightKg;
+        this.note = note;
     }
 }

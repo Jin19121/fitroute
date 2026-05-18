@@ -9,21 +9,18 @@ import java.time.LocalDate;
 @Getter
 @Builder
 public class WeightLogResponse {
-    private Long id;
-    private LocalDate logDate;
-    private Float weight;
-    private Float bodyFatPct;
-    private Float muscleMass;
-    private Float changeFromPrev; // 전일 대비 변화량 (null 가능)
 
-    public static WeightLogResponse from(WeightLog log, Float changeFromPrev) {
+    private Long id;
+    private LocalDate measuredAt;
+    private Float weightKg;
+    private String note;
+
+    public static WeightLogResponse from(WeightLog log) {
         return WeightLogResponse.builder()
                 .id(log.getId())
-                .logDate(log.getLogDate())
-                .weight(log.getWeight())
-                .bodyFatPct(log.getBodyFatPct())
-                .muscleMass(log.getMuscleMass())
-                .changeFromPrev(changeFromPrev)
+                .measuredAt(log.getMeasuredAt())
+                .weightKg(log.getWeightKg())
+                .note(log.getNote())
                 .build();
     }
 }
