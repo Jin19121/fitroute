@@ -16,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -34,15 +35,31 @@ public class AuthService {
 
     /**
      * 회원가입: User + UserProfile 저장 후 토큰 반환.
-     * 실패(중복 이메일 등) 시 예외를 던져 컨트롤러에서 처리.
+     *
+     * 이메일 중복 체크:
+     * GCM 암호화는 동일 평문이라도 IV가 달라 암호문이 매번 다르므로
+     * encryptedEmail 컬럼으로 직접 비교가 불가능하다.
+     * 따라서 전체 사용자의 encryptedEmail을 복호화해서 비교한다.
+     * (사용자 수가 적은 MVP 단계에서는 허용 가능, 추후 email_hash 컬럼 추가로 개선 예정)
      */
     @Transactional
     public SignupResponse signup(SignupRequest req) {
-        String encryptedEmail = aes256Util.encrypt(req.getEmail());
+        String plainEmail = req.getEmail().toLowerCase().trim();
 
-        if (userRepository.existsByEncryptedEmail(encryptedEmail)) {
+        boolean isDuplicate = userRepository.findAll().stream()
+                .anyMatch(u -> {
+                    try {
+                        return plainEmail.equals(aes256Util.decrypt(u.getEncryptedEmail()));
+                    } catch (Exception e) {
+                        return false;
+                    }
+                });
+
+        if (isDuplicate) {
             throw new IllegalArgumentException(ErrorCode.DUPLICATE_EMAIL.getMessage());
         }
+
+        String encryptedEmail = aes256Util.encrypt(plainEmail);
 
         User user = userRepository.save(User.builder()
                 .encryptedEmail(encryptedEmail)
@@ -76,11 +93,26 @@ public class AuthService {
         return new SignupResponse(accessToken, refreshToken);
     }
 
+    /**
+     * 로그인:
+     * GCM 암호화 특성상 encryptedEmail로 DB 조회가 불가능하므로
+     * 전체 사용자 조회 후 복호화하여 이메일을 비교한다.
+     * (추후 email_hash 컬럼 추가로 개선 예정)
+     */
     @Transactional
     public TokenResponse login(LoginRequest req) {
-        String encryptedEmail = aes256Util.encrypt(req.getEmail());
+        String plainEmail = req.getEmail().toLowerCase().trim();
 
-        User user = userRepository.findByEncryptedEmail(encryptedEmail)
+        List<User> allUsers = userRepository.findAll();
+        User user = allUsers.stream()
+                .filter(u -> {
+                    try {
+                        return plainEmail.equals(aes256Util.decrypt(u.getEncryptedEmail()));
+                    } catch (Exception e) {
+                        return false;
+                    }
+                })
+                .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(ErrorCode.USER_NOT_FOUND.getMessage()));
 
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {

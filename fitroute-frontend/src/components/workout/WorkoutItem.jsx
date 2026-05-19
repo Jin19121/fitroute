@@ -1,6 +1,7 @@
 // src/components/workout/WorkoutItem.jsx
 import { useState } from "react";
 import PlanItemActionSheet from "../PlanItemActionSheet";
+import WorkoutDetailSheet from "./WorkoutDetailSheet";
 
 const WO_COLOR = {
     CHEST: "#4a7bff",
