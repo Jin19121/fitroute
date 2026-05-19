@@ -86,6 +86,26 @@ public class PlanItem {
         return modifiedCalories != null ? modifiedCalories : calories;
     }
 
+    // PlanItem.java 에 추가 (기존 getEffectiveCalories, getEffectiveName 아래)
+
+    public int getEffectiveProtein() {
+        if (modifiedProtein != null)
+            return modifiedProtein;
+        return protein != null ? protein : 0;
+    }
+
+    public int getEffectiveCarbs() {
+        if (modifiedCarbs != null)
+            return modifiedCarbs;
+        return carbs != null ? carbs : 0;
+    }
+
+    public int getEffectiveFat() {
+        if (modifiedFat != null)
+            return modifiedFat;
+        return fat != null ? fat : 0;
+    }
+
     public int getEffectiveSets() {
         if (modifiedSets != null)
             return modifiedSets;

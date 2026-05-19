@@ -1,6 +1,9 @@
-// src/main/java/com/fitroute/domain/plan/service/DashboardService.java
+// domain/plan/service/DashboardService.java
 package com.fitroute.domain.plan.service;
 
+import com.fitroute.domain.log.entity.Log;
+import com.fitroute.domain.log.repository.LogRepository;
+import com.fitroute.domain.log.service.LogService;
 import com.fitroute.domain.plan.dto.DashboardResponse;
 import com.fitroute.domain.plan.dto.PlanItemActionRequest;
 import com.fitroute.domain.plan.entity.DailyPlan;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -30,55 +34,71 @@ public class DashboardService {
         private final DailyPlanRepository dailyPlanRepository;
         private final PlanItemRepository planItemRepository;
         private final UserProfileRepository userProfileRepository;
+        private final LogRepository logRepository;
+        private final LogService logService;
+
+        // ─────────────────────────────────────────────────────────────────────
+        // 대시보드 조회
+        // ─────────────────────────────────────────────────────────────────────
 
         public DashboardResponse getDashboard(Long userId) {
-
-                // 1. 오늘 플랜 조회 (없으면 NO_PLAN)
                 LocalDate today = LocalDate.now();
+
+                // 1. ACTIVE 플랜 조회
                 DailyPlan plan = dailyPlanRepository
-                                .findByUserIdAndPlanDate(userId, today)
+                                .findByUserIdAndPlanDateAndStatus(userId, today, DailyPlan.PlanStatus.ACTIVE)
                                 .orElse(null);
 
                 if (plan == null) {
-                        return DashboardResponse.builder()
-                                        .planStatus("NO_PLAN")
-                                        .build();
+                        // ACTIVE 없음 → 최신 버전으로 상태만 반환
+                        return dailyPlanRepository
+                                        .findTopByUserIdAndPlanDateOrderByVersionDesc(userId, today)
+                                        .map(p -> DashboardResponse.builder()
+                                                        .planStatus(p.getStatus().name())
+                                                        .planId(p.getId())
+                                                        .build())
+                                        .orElseGet(() -> DashboardResponse.builder().planStatus("NO_PLAN").build());
                 }
 
-                if (!"ACTIVE".equals(plan.getStatus().name())) {
-                        return DashboardResponse.builder()
-                                        .planStatus(plan.getStatus().name())
-                                        .planId(plan.getId())
-                                        .build();
-                }
-
-                // 2. 프로필 조회
+                // 2. 프로필
                 UserProfile profile = userProfileRepository.findByUserId(userId)
                                 .orElseThrow(() -> new IllegalStateException(
                                                 "UserProfile not found: userId=" + userId));
 
-                // 3. 오늘 아이템 조회
+                // 3. 오늘 PlanItem 조회 (상세 목록 표시용)
                 List<PlanItem> todayItems = planItemRepository.findByPlanIdAndDate(plan.getId(), today);
 
                 List<PlanItem> meals = todayItems.stream()
                                 .filter(i -> i.getType() == PlanItemType.MEAL)
                                 .collect(Collectors.toList());
-
                 List<PlanItem> workouts = todayItems.stream()
                                 .filter(i -> i.getType() == PlanItemType.WORKOUT)
                                 .collect(Collectors.toList());
 
-                // 4. 칼로리 집계 로직 수정 (2-5 지침 반영)
-                // ★ 이제 COMPLETED 상태면 수정한 내용(isModified) 여부와 상관없이 무조건 실제 섭취/수행한 것임
-                int consumedCalories = meals.stream()
-                                .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED)
-                                .mapToInt(PlanItem::getEffectiveCalories)
-                                .sum();
+                // 4. ★ 칼로리 집계: Log 우선 → PlanItem 폴백
+                int consumedCalories;
+                int burnedCalories;
 
-                int burnedCalories = workouts.stream()
-                                .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED)
-                                .mapToInt(PlanItem::getEffectiveCalories)
-                                .sum();
+                Optional<Log> todayLog = logRepository.findByUserIdAndLogDate(userId, today);
+                if (todayLog.isPresent()) {
+                        // Log 기반 집계 (정확한 값)
+                        consumedCalories = todayLog.get().getConsumedCalories();
+                        burnedCalories = todayLog.get().getBurnedCalories();
+                        log.debug("[Dashboard] Using Log aggregation - consumed={}, burned={}",
+                                        consumedCalories, burnedCalories);
+                } else {
+                        // Log 생성 전 최초 접속 케이스 → PlanItem 직접 집계
+                        consumedCalories = meals.stream()
+                                        .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED)
+                                        .mapToInt(PlanItem::getEffectiveCalories)
+                                        .sum();
+                        burnedCalories = workouts.stream()
+                                        .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED)
+                                        .mapToInt(PlanItem::getEffectiveCalories)
+                                        .sum();
+                        log.debug("[Dashboard] Using PlanItem fallback - consumed={}, burned={}",
+                                        consumedCalories, burnedCalories);
+                }
 
                 int targetCalories = plan.getCalorieTarget() != null ? plan.getCalorieTarget() : 0;
                 int remainingCalories = Math.max(0, targetCalories - consumedCalories);
@@ -93,11 +113,10 @@ public class DashboardService {
                                 ? (int) (completedThisWeek * 100 / activeThisWeek)
                                 : 0;
 
-                // 6. D-Day 계산 (planDate 기준)
+                // 6. D-Day
                 long daysRemaining = 0;
                 if (profile.getTargetPeriod() != null) {
-                        LocalDate endDate = plan.getPlanDate()
-                                        .plusWeeks(profile.getTargetPeriod());
+                        LocalDate endDate = plan.getPlanDate().plusWeeks(profile.getTargetPeriod());
                         daysRemaining = Math.max(0, ChronoUnit.DAYS.between(today, endDate));
                 }
 
@@ -132,6 +151,13 @@ public class DashboardService {
                                 .build();
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // PlanItem 액션 적용
+        // ─────────────────────────────────────────────────────────────────────
+
+        /**
+         * PlanItem 상태 변경 + Log 동기화를 단일 트랜잭션으로 처리.
+         */
         @Transactional
         public void applyItemAction(Long itemId, Long userId, PlanItemActionRequest req) {
                 req.validateModifiedFields();
@@ -144,7 +170,7 @@ public class DashboardService {
                         throw new SecurityException("Access denied to planItem: id=" + itemId);
                 }
 
-                // ★ PHASE 2 변경: req.getAction() 기반의 명시적 액션 비즈니스 로직 분기 (2-4 지침 반영)
+                // 비즈니스 로직: action 기반 상태 전환
                 switch (req.getAction()) {
                         case COMPLETE -> item.complete();
 
@@ -160,7 +186,6 @@ public class DashboardService {
                                         req.getModifiedReps());
 
                         case COMPLETE_WITH_MODIFY -> {
-                                // 수정 내용 기록 먼저 수행 후 완료 상태로 변경
                                 item.modify(
                                                 req.getModifiedName(),
                                                 req.getModifiedCalories(),
@@ -177,6 +202,9 @@ public class DashboardService {
                         default -> throw new IllegalArgumentException(
                                         "지원하지 않는 action: " + req.getAction());
                 }
+
+                // ★ PHASE 3: PlanItem 변경 후 Log에 반영 (같은 트랜잭션)
+                logService.upsertFromPlanItem(item);
         }
 
         private String extractUserName(UserProfile profile) {

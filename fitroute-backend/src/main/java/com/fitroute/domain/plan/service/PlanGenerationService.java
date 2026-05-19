@@ -1,6 +1,7 @@
 // domain/plan/service/PlanGenerationService.java
 package com.fitroute.domain.plan.service;
 
+import com.fitroute.domain.log.service.LogService;
 import com.fitroute.domain.plan.entity.DailyPlan;
 import com.fitroute.domain.plan.entity.PlanItem;
 import com.fitroute.domain.plan.repository.DailyPlanRepository;
@@ -37,6 +38,7 @@ public class PlanGenerationService {
     private final GeminiClient geminiClient;
     private final GeminiPromptBuilder promptBuilder;
     private final GeminiResponseParser responseParser;
+    private final LogService logService;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -51,13 +53,40 @@ public class PlanGenerationService {
         doGenerate(userId, LocalDate.now());
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // 핵심 생성 로직 (버전 관리 포함)
+    // ─────────────────────────────────────────────────────────────────────
+
     private void doGenerate(Long userId, LocalDate date) {
         log.info("[PlanGeneration] Start - userId={}, date={}", userId, date);
 
-        // GENERATING 상태로 먼저 저장 (실패 추적 가능)
+        // 1. 기존 플랜 조회 → versioning 계산
+        List<DailyPlan> existingPlans = dailyPlanRepository
+                .findByUserIdAndPlanDateOrderByVersionDesc(userId, date);
+
+        int newVersion = 1;
+        Long rootPlanId = null;
+
+        if (!existingPlans.isEmpty()) {
+            DailyPlan latest = existingPlans.get(0);
+            newVersion = latest.getVersion() + 1;
+            rootPlanId = latest.getRootPlanId();
+
+            // ACTIVE 플랜 SUPERSEDE
+            existingPlans.stream()
+                    .filter(p -> p.getStatus() == DailyPlan.PlanStatus.ACTIVE)
+                    .forEach(DailyPlan::supersede);
+
+            log.info("[PlanGeneration] Superseding v{} → creating v{}",
+                    latest.getVersion(), newVersion);
+        }
+
+        // 2. 새 GENERATING 플랜 저장
         DailyPlan dailyPlan = DailyPlan.builder()
                 .userId(userId)
                 .planDate(date)
+                .version(newVersion)
+                .rootPlanId(rootPlanId)
                 .build();
         dailyPlanRepository.save(dailyPlan);
 
@@ -71,40 +100,41 @@ public class PlanGenerationService {
             String rawResponse = geminiClient.call(systemInstruction, userPrompt);
             String planJson = responseParser.extractText(rawResponse);
 
-            // 정제된 JSON 구성
             int dailyCalories = responseParser.parseDailyCalories(planJson);
             Map<String, Object> mealPlan = responseParser.parseMealPlan(planJson);
             Map<String, Object> workoutPlan = responseParser.parseWorkoutPlan(planJson);
             Map<String, Object> aiMeta = Map.of(
                     "rawResponse", planJson,
-                    "generatedAt", LocalDateTime.now().toString());
+                    "generatedAt", LocalDateTime.now().toString(),
+                    "version", newVersion);
 
-            // PlanItem 저장
             List<PlanItem> items = responseParser.parsePlanItems(planJson, dailyPlan);
             planItemRepository.saveAll(items);
 
-            // DailyPlan 완료 처리
             dailyPlan.complete(dailyCalories, mealPlan, workoutPlan, aiMeta);
 
-            log.info("[PlanGeneration] Success - userId={}, planId={}, dailyCalories={}",
-                    userId, dailyPlan.getId(), dailyCalories);
+            // ★ PHASE 3: Log 초기화 (재생성 시 리셋, 최초 생성 시 신규)
+            if (newVersion > 1) {
+                logService.resetForNewPlan(dailyPlan);
+            } else {
+                logService.createForPlan(dailyPlan);
+            }
+
+            log.info("[PlanGeneration] Success v{} - userId={}, planId={}, dailyCalories={}",
+                    newVersion, userId, dailyPlan.getId(), dailyCalories);
 
         } catch (Exception e) {
             dailyPlan.fail();
-            String msg = extractMeaningfulMessage(e);
-            log.error("[PlanGeneration] Failed - userId={}, planId={}, error={}",
-                    userId, dailyPlan.getId(), msg, e);
+            log.error("[PlanGeneration] Failed v{} - userId={}, planId={}, error={}",
+                    newVersion, userId, dailyPlan.getId(), extractMeaningfulMessage(e), e);
         }
     }
 
     private String extractMeaningfulMessage(Exception e) {
         if (e instanceof HttpClientErrorException httpEx) {
             String body = httpEx.getResponseBodyAsString();
-            String truncated = body.length() > 500 ? body.substring(0, 500) + "... [truncated]" : body;
-            return "HTTP " + httpEx.getStatusCode() + ": " + truncated;
-        }
-        if (e instanceof IllegalStateException) {
-            return e.getMessage();
+            return "HTTP " + httpEx.getStatusCode() + ": "
+                    + (body.length() > 500 ? body.substring(0, 500) + "...[truncated]" : body);
         }
         return e.getClass().getSimpleName() + ": " + e.getMessage();
     }

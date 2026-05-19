@@ -169,6 +169,13 @@ export default function DayDetailCard({ dayDetail, loading, filter, onRecordWeig
                     <WeightDetail weight={dayDetail.weight} onRecord={onRecordWeight} />
                 </div>
             )}
+
+            // DayDetailCard.jsx의 WorkoutItem 렌더링에 추가
+            {item.diffCalories !== 0 && (
+                <span className={`text-[9px] ml-1 ${item.diffCalories > 0 ? 'text-red-400' : 'text-[#4a7bff]'}`}>
+                    {item.diffCalories > 0 ? `+${item.diffCalories}` : item.diffCalories} kcal
+                </span>
+            )}
         </div>
     );
 }
