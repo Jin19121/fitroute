@@ -21,6 +21,10 @@ public class User {
     @Column(name = "encrypted_email", nullable = false, unique = true)
     private String encryptedEmail;
 
+    // 검색 성능 최적화를 위한 SHA-256 단방향 해시 컬럼 추가
+    @Column(name = "email_hash", nullable = false, unique = true)
+    private String emailHash;
+
     @Column(nullable = false)
     private String password;
 
@@ -28,14 +32,13 @@ public class User {
     @Column(nullable = false)
     private UserRole role;
 
-    // 이 부분이 추가되어야 user.getProfile()이 작동합니다.
-    // mappedBy는 UserProfile 엔티티에 정의된 User 필드명("user")과 일치해야 합니다.
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private UserProfile profile;
 
     @Builder
-    public User(String encryptedEmail, String password, UserRole role) {
+    public User(String encryptedEmail, String emailHash, String password, UserRole role) {
         this.encryptedEmail = encryptedEmail;
+        this.emailHash = emailHash;
         this.password = password;
         this.role = role;
     }

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
@@ -20,6 +21,30 @@ public class Aes256Util {
 
     @Value("${security.aes.key}")
     private String key;
+
+    /**
+     * SHA-256 단방향 해싱 메서드 추가
+     * 입력값이 같으면 항상 동일한 해시값을 반환하므로 인덱스 기반 검색에 활용 가능
+     */
+    public String hash(String plainText) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(plainText.getBytes(StandardCharsets.UTF_8));
+
+            // 바이트 배열을 16진수 문자열(Hex String)로 변환
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hashBytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("SHA-256 해싱 실패", e);
+        }
+    }
 
     /**
      * AES/GCM/NoPadding 암호화

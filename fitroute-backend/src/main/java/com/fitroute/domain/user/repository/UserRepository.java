@@ -3,15 +3,17 @@ package com.fitroute.domain.user.repository;
 
 import com.fitroute.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Optional;
 
 /**
  * GCM 암호화 특성상 encryptedEmail 컬럼으로 직접 조회 불가
- * (동일 평문이라도 IV가 달라 암호문이 매번 다름)
- *
- * 현재: findAll() 후 AuthService에서 복호화 비교 (MVP 단계)
- * 개선 예정: email_hash(SHA256) 컬럼 추가 → 해시 기반 O(1) 조회
+ * 개선 완료: email_hash(SHA256) 단방향 해시 컬럼 기반으로 인덱스를 통한 O(1) 검색 수행
  */
 public interface UserRepository extends JpaRepository<User, Long> {
-    // findByEncryptedEmail, existsByEncryptedEmail 제거
-    // AuthService에서 findAll() + decrypt() 로 대체
+
+    // 해시값을 이용한 유저 정보 조회 (로그인 시 사용)
+    Optional<User> findByEmailHash(String emailHash);
+
+    // 해시값을 이용한 이메일 중복 체크 (회원가입 시 사용)
+    boolean existsByEmailHash(String emailHash);
 }

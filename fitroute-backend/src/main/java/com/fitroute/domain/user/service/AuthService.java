@@ -16,7 +16,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -35,34 +34,26 @@ public class AuthService {
 
     /**
      * 회원가입: User + UserProfile 저장 후 토큰 반환.
-     *
-     * 이메일 중복 체크:
-     * GCM 암호화는 동일 평문이라도 IV가 달라 암호문이 매번 다르므로
-     * encryptedEmail 컬럼으로 직접 비교가 불가능하다.
-     * 따라서 전체 사용자의 encryptedEmail을 복호화해서 비교한다.
-     * (사용자 수가 적은 MVP 단계에서는 허용 가능, 추후 email_hash 컬럼 추가로 개선 예정)
+     * 개선 완료: 전체 조회를 제거하고 이메일 해시값을 인덱스로 활용해 중복 여부를 빠르게 확인
      */
     @Transactional
     public SignupResponse signup(SignupRequest req) {
         String plainEmail = req.getEmail().toLowerCase().trim();
 
-        boolean isDuplicate = userRepository.findAll().stream()
-                .anyMatch(u -> {
-                    try {
-                        return plainEmail.equals(aes256Util.decrypt(u.getEncryptedEmail()));
-                    } catch (Exception e) {
-                        return false;
-                    }
-                });
+        // 이메일 단방향 해싱 처리
+        String emailHash = aes256Util.hash(plainEmail);
 
-        if (isDuplicate) {
+        // O(1) 수준의 존재 여부 확인으로 최적화
+        if (userRepository.existsByEmailHash(emailHash)) {
             throw new IllegalArgumentException(ErrorCode.DUPLICATE_EMAIL.getMessage());
         }
 
+        // 마스킹/복호화에 필요한 기존 양방향 암호문 생성
         String encryptedEmail = aes256Util.encrypt(plainEmail);
 
         User user = userRepository.save(User.builder()
                 .encryptedEmail(encryptedEmail)
+                .emailHash(emailHash) // 해시 필드 바인딩 추가
                 .password(passwordEncoder.encode(req.getPassword()))
                 .role(UserRole.USER)
                 .build());
@@ -95,24 +86,18 @@ public class AuthService {
 
     /**
      * 로그인:
-     * GCM 암호화 특성상 encryptedEmail로 DB 조회가 불가능하므로
-     * 전체 사용자 조회 후 복호화하여 이메일을 비교한다.
-     * (추후 email_hash 컬럼 추가로 개선 예정)
+     * 개선 완료: 전체 사용자 로드 후 루프 연산 방식을 폐기하고,
+     * 입력값의 해시 검증을 토대로 필요한 단 하나의 User 정보만 DB에서 직접 조회함
      */
     @Transactional
     public TokenResponse login(LoginRequest req) {
         String plainEmail = req.getEmail().toLowerCase().trim();
 
-        List<User> allUsers = userRepository.findAll();
-        User user = allUsers.stream()
-                .filter(u -> {
-                    try {
-                        return plainEmail.equals(aes256Util.decrypt(u.getEncryptedEmail()));
-                    } catch (Exception e) {
-                        return false;
-                    }
-                })
-                .findFirst()
+        // 검색용 해시값 생성
+        String emailHash = aes256Util.hash(plainEmail);
+
+        // O(1) 해시 매핑 쿼리 실행
+        User user = userRepository.findByEmailHash(emailHash)
                 .orElseThrow(() -> new IllegalArgumentException(ErrorCode.USER_NOT_FOUND.getMessage()));
 
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
