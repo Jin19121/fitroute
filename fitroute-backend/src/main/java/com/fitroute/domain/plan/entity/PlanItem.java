@@ -26,7 +26,6 @@ public class PlanItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ★ Plan → DailyPlan 으로 수정 (plan_items.plan_id = daily_plans.id)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "plan_id", nullable = false)
     private DailyPlan dailyPlan;
@@ -47,25 +46,20 @@ public class PlanItem {
     @Column(nullable = false, length = 20)
     private PlanItemStatus status = PlanItemStatus.PENDING;
 
-    // ── MEAL 전용 ──────────────────────────────────
     private String foodName;
-
-    // ── WORKOUT 전용 ───────────────────────────────
     private String exerciseName;
     private Integer sets;
     private Integer reps;
-    private Integer weightKg; // 컬럼명 충돌 방지 (weight → weightKg)
+    private Integer weightKg;
 
-    // ── 공통 ───────────────────────────────────────
     @Column(nullable = false)
     private Integer calories;
 
     private Integer protein;
     private Integer carbs;
     private Integer fat;
-    private Integer durationMin; // WORKOUT 전용
+    private Integer durationMin;
 
-    // ── 수정 내용 (원본 절대 덮어쓰지 않음) ────────────
     @Column(length = 200)
     private String modifiedName;
     private Integer modifiedCalories;
@@ -77,7 +71,6 @@ public class PlanItem {
 
     private LocalDateTime statusUpdatedAt;
 
-    // ── 유효 값 반환 (수정값 우선) ────────────────────
     public String getEffectiveName() {
         if (modifiedName != null)
             return modifiedName;
@@ -100,10 +93,8 @@ public class PlanItem {
         return reps != null ? reps : 0;
     }
 
-    // ── 도메인 메서드 ─────────────────────────────────
-    public void modify(String name, Integer cal,
-            Integer protein, Integer carbs, Integer fat,
-            Integer sets, Integer reps) {
+    public void modify(String name, Integer cal, Integer protein, Integer carbs, Integer fat, Integer sets,
+            Integer reps) {
         this.status = PlanItemStatus.MODIFIED;
         this.statusUpdatedAt = LocalDateTime.now();
         if (name != null)
@@ -130,15 +121,16 @@ public class PlanItem {
     public void complete() {
         this.status = PlanItemStatus.COMPLETED;
         this.statusUpdatedAt = LocalDateTime.now();
-        clearModifiedFields();
+        // ★ 시니어 가이드 기반 보완: clearModifiedFields() 호출 제거하여 수정 데이터 보존
     }
 
     public void skip() {
         this.status = PlanItemStatus.SKIPPED;
         this.statusUpdatedAt = LocalDateTime.now();
-        clearModifiedFields();
+        // ★ 시니어 가이드 기반 보완: clearModifiedFields() 호출 제거하여 수정 데이터 보존
     }
 
+    // PHASE 2에서 소거할 예정이므로 메서드 원형은 유지
     private void clearModifiedFields() {
         this.modifiedName = null;
         this.modifiedCalories = null;
@@ -149,9 +141,8 @@ public class PlanItem {
         this.modifiedReps = null;
     }
 
-    public void edit(String name, Integer cal,
-            Integer protein, Integer carbs, Integer fat,
-            Integer sets, Integer reps) {
+    public void edit(String name, Integer cal, Integer protein, Integer carbs, Integer fat, Integer sets,
+            Integer reps) {
         this.status = PlanItemStatus.EDITED;
         this.statusUpdatedAt = LocalDateTime.now();
         if (name != null)
@@ -170,7 +161,6 @@ public class PlanItem {
             this.modifiedReps = reps;
     }
 
-    // ─── Setter 메서드 (PlanItem 생성 후 필드 설정용) ────
     public void setFoodName(String foodName) {
         this.foodName = foodName;
     }
