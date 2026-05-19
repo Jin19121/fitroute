@@ -12,9 +12,14 @@ export default function MealSection({ label, items = [], mealType, onTap }) {
     const badge = MEAL_BADGE[mealType] ?? { bg: '#F2EEE8', color: '#8A8680', label };
 
     const planned = items.reduce((s, i) => s + (i.calories ?? 0), 0);
+
+    // ─── 변경: COMPLETED 단일 조건으로 집계 (isModified 여부 무관)
+    // COMPLETED이면 수정 여부와 상관없이 실제 섭취한 것으로 판단
     const consumed = items
-        .filter(i => i.status === 'COMPLETED' || i.status === 'MODIFIED')
+        .filter(i => i.status === 'COMPLETED')
         .reduce((s, i) => s + (i.effectiveCalories ?? i.calories ?? 0), 0);
+
+    // ─── 변경: PENDING이 없으면 allDone (SKIPPED 포함)
     const allDone = items.length > 0 && items.every(i => i.status !== 'PENDING');
 
     return (

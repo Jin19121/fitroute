@@ -1,7 +1,7 @@
-// domain/plan/dto/PlanItemActionRequest.java
+// src/main/java/com/fitroute/domain/plan/dto/PlanItemActionRequest.java
 package com.fitroute.domain.plan.dto;
 
-import com.fitroute.global.enums.PlanItemStatus;
+import com.fitroute.global.enums.PlanItemAction;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -13,10 +13,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class PlanItemActionRequest {
 
-    @NotNull(message = "status는 필수입니다.")
-    private PlanItemStatus status;
+    // ★ PHASE 2 변경: status 필드를 제거하고 action 필드로 전면 교체
+    @NotNull(message = "action은 필수입니다.")
+    private PlanItemAction action;
 
-    // MODIFIED 전용 필드 — 상태가 MODIFIED일 때만 검증
+    // MODIFIED/EDITED 계열 필드 보존
     @Size(max = 200, message = "이름은 200자 이하여야 합니다.")
     private String modifiedName;
 
@@ -31,13 +32,14 @@ public class PlanItemActionRequest {
     private Integer modifiedReps;
 
     /**
-     * MODIFIED 상태일 때 최소한 이름 또는 칼로리 중 하나는 필요
+     * ★ action 기반 커스텀 유효성 검증
+     * MODIFY 또는 COMPLETE_WITH_MODIFY 상태일 때 최소한 이름 또는 칼로리 중 하나는 필수적으로 제공되어야 합니다.
      */
     public void validateModifiedFields() {
-        if (status == PlanItemStatus.MODIFIED) {
+        if (action == PlanItemAction.MODIFY || action == PlanItemAction.COMPLETE_WITH_MODIFY) {
             if (modifiedName == null && modifiedCalories == null) {
                 throw new IllegalArgumentException(
-                        "MODIFIED 상태에서는 modifiedName 또는 modifiedCalories가 필요합니다.");
+                        "MODIFY 또는 COMPLETE_WITH_MODIFY 액션 시에는 modifiedName 또는 modifiedCalories 중 하나 이상이 필수입니다.");
             }
         }
     }

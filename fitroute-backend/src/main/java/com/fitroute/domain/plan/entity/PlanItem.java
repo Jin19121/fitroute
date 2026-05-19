@@ -71,6 +71,11 @@ public class PlanItem {
 
     private LocalDateTime statusUpdatedAt;
 
+    // isModified 필드 추가
+    @Column(name = "is_modified", nullable = false)
+    @Builder.Default
+    private boolean isModified = false;
+
     public String getEffectiveName() {
         if (modifiedName != null)
             return modifiedName;
@@ -95,7 +100,7 @@ public class PlanItem {
 
     public void modify(String name, Integer cal, Integer protein, Integer carbs, Integer fat, Integer sets,
             Integer reps) {
-        this.status = PlanItemStatus.MODIFIED;
+        this.isModified = true;
         this.statusUpdatedAt = LocalDateTime.now();
         if (name != null)
             this.modifiedName = name;
@@ -113,25 +118,12 @@ public class PlanItem {
             this.modifiedReps = reps;
     }
 
+    // resetToPending(): 전부 초기화
     public void resetToPending() {
         this.status = PlanItemStatus.PENDING;
+        this.isModified = false;
         this.statusUpdatedAt = null;
-    }
-
-    public void complete() {
-        this.status = PlanItemStatus.COMPLETED;
-        this.statusUpdatedAt = LocalDateTime.now();
-        // ★ 시니어 가이드 기반 보완: clearModifiedFields() 호출 제거하여 수정 데이터 보존
-    }
-
-    public void skip() {
-        this.status = PlanItemStatus.SKIPPED;
-        this.statusUpdatedAt = LocalDateTime.now();
-        // ★ 시니어 가이드 기반 보완: clearModifiedFields() 호출 제거하여 수정 데이터 보존
-    }
-
-    // PHASE 2에서 소거할 예정이므로 메서드 원형은 유지
-    private void clearModifiedFields() {
+        // modifiedFields null 처리
         this.modifiedName = null;
         this.modifiedCalories = null;
         this.modifiedProtein = null;
@@ -141,25 +133,49 @@ public class PlanItem {
         this.modifiedReps = null;
     }
 
-    public void edit(String name, Integer cal, Integer protein, Integer carbs, Integer fat, Integer sets,
-            Integer reps) {
-        this.status = PlanItemStatus.EDITED;
+    public void complete() {
+        this.status = PlanItemStatus.COMPLETED;
         this.statusUpdatedAt = LocalDateTime.now();
-        if (name != null)
-            this.modifiedName = name;
-        if (cal != null)
-            this.modifiedCalories = cal;
-        if (protein != null)
-            this.modifiedProtein = protein;
-        if (carbs != null)
-            this.modifiedCarbs = carbs;
-        if (fat != null)
-            this.modifiedFat = fat;
-        if (sets != null)
-            this.modifiedSets = sets;
-        if (reps != null)
-            this.modifiedReps = reps;
+        // clearModifiedFields() 호출 없음
     }
+
+    public void skip() {
+        this.status = PlanItemStatus.SKIPPED;
+        this.statusUpdatedAt = LocalDateTime.now();
+        // ★ 시니어 가이드 기반 보완: clearModifiedFields() 호출 제거하여 수정 데이터 보존
+    }
+
+    // PHASE 2에서 소거할 예정이므로 메서드 원형은 유지
+    // private void clearModifiedFields() {
+    // this.modifiedName = null;
+    // this.modifiedCalories = null;
+    // this.modifiedProtein = null;
+    // this.modifiedCarbs = null;
+    // this.modifiedFat = null;
+    // this.modifiedSets = null;
+    // this.modifiedReps = null;
+    // }
+
+    // public void edit(String name, Integer cal, Integer protein, Integer carbs,
+    // Integer fat, Integer sets,
+    // Integer reps) {
+    // this.status = PlanItemStatus.EDITED;
+    // this.statusUpdatedAt = LocalDateTime.now();
+    // if (name != null)
+    // this.modifiedName = name;
+    // if (cal != null)
+    // this.modifiedCalories = cal;
+    // if (protein != null)
+    // this.modifiedProtein = protein;
+    // if (carbs != null)
+    // this.modifiedCarbs = carbs;
+    // if (fat != null)
+    // this.modifiedFat = fat;
+    // if (sets != null)
+    // this.modifiedSets = sets;
+    // if (reps != null)
+    // this.modifiedReps = reps;
+    // }
 
     public void setFoodName(String foodName) {
         this.foodName = foodName;

@@ -371,8 +371,7 @@ public class ReportService {
     // ─── 공통 헬퍼 ───────────────────────────────────────────────────────────
 
     private boolean isCompleted(PlanItem item) {
-        return item.getStatus() == PlanItemStatus.COMPLETED
-                || item.getStatus() == PlanItemStatus.MODIFIED;
+            return item.getStatus() == PlanItemStatus.COMPLETED;
     }
 
     private String toDayOfWeekKr(LocalDate date) {

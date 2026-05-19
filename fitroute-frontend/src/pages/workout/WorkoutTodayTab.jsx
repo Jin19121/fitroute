@@ -26,20 +26,21 @@ const WO_BADGE = {
     REST: "휴식",
 };
 
+// ─── 변경: MODIFIED / EDITED 제거, isModified 플래그로 판단 ──────────────
 const STATUS_CONFIG = {
     COMPLETED: { color: "#2a5cc5", label: "완수", bg: "#eef3ff" },
     SKIPPED: { color: "#8a8680", label: "미실행", bg: "#f0ece5" },
-    MODIFIED: { color: "#1a9e75", label: "수정", bg: "#edfaf3" },
-    EDITED: { color: "#b55a00", label: "수정중", bg: "#fff8e6" },
 };
 
 // ── 단일 운동 아이템 ──────────────────────────────
 function WorkoutItem({ item, onTap }) {
     const [open, setOpen] = useState(false);
 
-    const done = item.status === "COMPLETED" || item.status === "MODIFIED";
+    // ─── 변경: done 판정을 status === "COMPLETED" 단일 조건으로 단순화 ───
+    const done = item.status === "COMPLETED";
     const skip = item.status === "SKIPPED";
     const muted = done || skip;
+
     const statusCfg = STATUS_CONFIG[item.status];
     const color = WO_COLOR[item.category] ?? "#9ca3af";
     const badge = WO_BADGE[item.category] ?? item.category;
@@ -48,7 +49,7 @@ function WorkoutItem({ item, onTap }) {
     return (
         <div
             className={`bg-white rounded-2xl overflow-hidden
-                ${item.status === "MODIFIED" ? "border-l-2 border-[#1a9e75]" : ""}`}
+                ${item.isModified ? "border-l-2 border-[#1a9e75]" : ""}`}
         >
             {/* 헤더 행 */}
             <div className="flex items-center gap-3 px-4 py-3">
@@ -94,6 +95,12 @@ function WorkoutItem({ item, onTap }) {
                         {item.durationMin > 0 && (
                             <span className="text-[10px] text-[#b8b4ae]">
                                 {item.durationMin}분
+                            </span>
+                        )}
+                        {/* ─── 변경: isModified 플래그로 수정 뱃지 표시 ─── */}
+                        {item.isModified && (
+                            <span className="text-[7px] font-semibold px-1.5 py-0.5 rounded-full bg-[#edfaf3] text-[#1a6b40]">
+                                수정됨
                             </span>
                         )}
                     </div>
@@ -148,8 +155,8 @@ function WorkoutItem({ item, onTap }) {
                             </div>
                         )}
 
-                        {/* 수정 이력 */}
-                        {item.status === "MODIFIED" && item.effectiveName !== item.exerciseName && (
+                        {/* ─── 변경: isModified + 이름 변경 여부로 수정 이력 표시 ─── */}
+                        {item.isModified && item.effectiveName !== item.exerciseName && (
                             <div className="text-[9px] text-[#1a9e75]">
                                 원본: {item.exerciseName} → {item.effectiveCalories}kcal
                             </div>
@@ -165,7 +172,9 @@ function WorkoutItem({ item, onTap }) {
 function CategoryGroup({ category, items, onTap }) {
     const color = WO_COLOR[category] ?? "#9ca3af";
     const badge = WO_BADGE[category] ?? category;
-    const completed = items.filter((w) => w.status !== "PENDING" && w.status !== "SKIPPED").length;
+
+    // ─── 변경: 완수 판정을 status === "COMPLETED" 단일 조건으로 단순화 ───
+    const completed = items.filter((w) => w.status === "COMPLETED").length;
     const total = items.filter((w) => w.status !== "SKIPPED").length;
 
     return (
@@ -185,8 +194,6 @@ function CategoryGroup({ category, items, onTap }) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────
-const categoryOrder = ["CHEST", "BACK", "LEGS", "SHOULDERS", "ARMS", "CORE", "CARDIO", "REST"];
-
 export default function WorkoutTodayTab() {
     const { workouts, groupedByCategory, sortedCategories, loading, applyAction, reload } =
         useWorkoutToday();
@@ -228,9 +235,9 @@ export default function WorkoutTodayTab() {
         );
     }
 
-    // 진행률 계산
+    // ─── 변경: 진행률 계산을 status === "COMPLETED" 단일 조건으로 단순화 ───
     const totalActive = workouts.filter((w) => w.status !== "SKIPPED").length;
-    const totalDone = workouts.filter((w) => w.status !== "PENDING" && w.status !== "SKIPPED").length;
+    const totalDone = workouts.filter((w) => w.status === "COMPLETED").length;
     const pct = totalActive > 0 ? Math.round((totalDone / totalActive) * 100) : 0;
 
     return (
@@ -264,16 +271,6 @@ export default function WorkoutTodayTab() {
                     ))}
                 </div>
             </div>
-
-            {/* FAB 버튼 */}
-            {/* <div className="fixed bottom-20 right-5">
-                <button
-                    onClick={() => setShowAddSheet(true)}
-                    className="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-600 transition-colors text-xl"
-                >
-                    +
-                </button>
-            </div> */}
 
             {/* Action Sheet */}
             <PlanItemActionSheet

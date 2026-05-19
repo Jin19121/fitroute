@@ -44,6 +44,9 @@ public class PlanItemResponse {
 
     private PlanItemStatus status;
 
+    // ★ PHASE 2 추가: 수정 플래그 단독 제공 (프론트가 UI 렌더링 시 조건부 텍스트/뱃지 처리에 활용)
+    private boolean isModified;
+
     // ─── 수정된 값 ──────────────────────────────
     private String effectiveName;
     private Integer effectiveCalories;
@@ -66,6 +69,7 @@ public class PlanItemResponse {
                 .durationMin(item.getDurationMin())
                 .calories(item.getCalories())
                 .status(item.getStatus())
+                .isModified(item.isModified()) // ★ 엔티티의 boolean 분리 값 매핑
                 .effectiveName(item.getEffectiveName())
                 .effectiveCalories(item.getEffectiveCalories())
                 .build();

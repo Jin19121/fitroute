@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class DashboardService {
 
-        private final DailyPlanRepository dailyPlanRepository; // ★ PlanRepository → DailyPlanRepository
+        private final DailyPlanRepository dailyPlanRepository;
         private final PlanItemRepository planItemRepository;
         private final UserProfileRepository userProfileRepository;
 
@@ -35,7 +35,7 @@ public class DashboardService {
 
                 // 1. 오늘 플랜 조회 (없으면 NO_PLAN)
                 LocalDate today = LocalDate.now();
-                DailyPlan plan = dailyPlanRepository // ★ Plan → DailyPlan
+                DailyPlan plan = dailyPlanRepository
                                 .findByUserIdAndPlanDate(userId, today)
                                 .orElse(null);
 
@@ -68,25 +68,19 @@ public class DashboardService {
                                 .filter(i -> i.getType() == PlanItemType.WORKOUT)
                                 .collect(Collectors.toList());
 
-                // 4. 칼로리 계산
-                // EDITED는 섭취 칼로리에 포함 안 함 (미완수이므로)
+                // 4. 칼로리 집계 로직 수정 (2-5 지침 반영)
+                // ★ 이제 COMPLETED 상태면 수정한 내용(isModified) 여부와 상관없이 무조건 실제 섭취/수행한 것임
                 int consumedCalories = meals.stream()
-                                .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED
-                                                || i.getStatus() == PlanItemStatus.MODIFIED)
-                                // EDITED 제외
+                                .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED)
                                 .mapToInt(PlanItem::getEffectiveCalories)
                                 .sum();
 
                 int burnedCalories = workouts.stream()
-                                .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED
-                                                || i.getStatus() == PlanItemStatus.MODIFIED)
+                                .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED)
                                 .mapToInt(PlanItem::getEffectiveCalories)
                                 .sum();
 
-                int targetCalories = plan.getCalorieTarget() != null ? plan.getCalorieTarget() : 0; // ★
-                                                                                                    // getTotalCalories
-                                                                                                    // →
-                                                                                                    // getCalorieTarget
+                int targetCalories = plan.getCalorieTarget() != null ? plan.getCalorieTarget() : 0;
                 int remainingCalories = Math.max(0, targetCalories - consumedCalories);
 
                 // 5. 주간 달성률
@@ -103,7 +97,7 @@ public class DashboardService {
                 long daysRemaining = 0;
                 if (profile.getTargetPeriod() != null) {
                         LocalDate endDate = plan.getPlanDate()
-                                        .plusWeeks(profile.getTargetPeriod()); // ★ getStartDate → getPlanDate
+                                        .plusWeeks(profile.getTargetPeriod());
                         daysRemaining = Math.max(0, ChronoUnit.DAYS.between(today, endDate));
                 }
 
@@ -120,7 +114,7 @@ public class DashboardService {
                                 .weightToLose(weightToLose)
                                 .targetPeriodWeeks(profile.getTargetPeriod())
                                 .daysRemaining((int) daysRemaining)
-                                .startDate(plan.getPlanDate()) // ★ getStartDate → getPlanDate
+                                .startDate(plan.getPlanDate())
                                 .targetCaloriesPerDay(targetCalories)
                                 .weeklyAchievementRate(weeklyRate)
                                 .today(DashboardResponse.TodayData.builder()
@@ -146,15 +140,17 @@ public class DashboardService {
                                 .orElseThrow(() -> new IllegalArgumentException(
                                                 "PlanItem not found: id=" + itemId));
 
-                // ★ item.getPlan() → item.getDailyPlan()
                 if (!item.getDailyPlan().getUserId().equals(userId)) {
                         throw new SecurityException("Access denied to planItem: id=" + itemId);
                 }
 
-                switch (req.getStatus()) {
-                        case COMPLETED -> item.complete();
-                        case SKIPPED -> item.skip();
-                        case MODIFIED -> item.modify(
+                // ★ PHASE 2 변경: req.getAction() 기반의 명시적 액션 비즈니스 로직 분기 (2-4 지침 반영)
+                switch (req.getAction()) {
+                        case COMPLETE -> item.complete();
+
+                        case SKIP -> item.skip();
+
+                        case MODIFY -> item.modify(
                                         req.getModifiedName(),
                                         req.getModifiedCalories(),
                                         req.getModifiedProtein(),
@@ -162,22 +158,28 @@ public class DashboardService {
                                         req.getModifiedFat(),
                                         req.getModifiedSets(),
                                         req.getModifiedReps());
-                        case EDITED -> item.edit(
-                                        req.getModifiedName(),
-                                        req.getModifiedCalories(),
-                                        req.getModifiedProtein(),
-                                        req.getModifiedCarbs(),
-                                        req.getModifiedFat(),
-                                        req.getModifiedSets(),
-                                        req.getModifiedReps());
-                        case PENDING -> item.resetToPending();
+
+                        case COMPLETE_WITH_MODIFY -> {
+                                // 수정 내용 기록 먼저 수행 후 완료 상태로 변경
+                                item.modify(
+                                                req.getModifiedName(),
+                                                req.getModifiedCalories(),
+                                                req.getModifiedProtein(),
+                                                req.getModifiedCarbs(),
+                                                req.getModifiedFat(),
+                                                req.getModifiedSets(),
+                                                req.getModifiedReps());
+                                item.complete();
+                        }
+
+                        case RESET -> item.resetToPending();
+
                         default -> throw new IllegalArgumentException(
-                                        "지원하지 않는 status: " + req.getStatus());
+                                        "지원하지 않는 action: " + req.getAction());
                 }
         }
 
         private String extractUserName(UserProfile profile) {
-                // TODO: User 엔티티에서 닉네임 조회로 교체
                 return "사용자";
         }
 }

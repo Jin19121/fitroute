@@ -19,7 +19,7 @@ const EditIcon = () => (
 );
 const UndoIcon = () => (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <path d="M5 7H12a3.5 3.5 0 010 7H8" stroke="#6b7280" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M5 7H12a3.5 3.5 0 010 7H8" stroke="#6b7280" strokeWidth="1.6" strokeLineround="round" />
         <path d="M7.5 4.5L5 7L7.5 9.5" stroke="#6b7280" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
 );
@@ -40,13 +40,13 @@ function MealEditForm({ item, onSubmit, onBack }) {
 
     useEffect(() => { nameRef.current?.focus(); }, []);
 
-    const handleSubmit = (saveStatus) => {
+    const handleSubmit = (targetAction) => {
         if (!name.trim() && !cal) {
             alert("음식명 또는 칼로리를 입력해 주세요.");
             return;
         }
         onSubmit({
-            status: saveStatus,
+            action: targetAction,
             modifiedName: name.trim() || undefined,
             modifiedCalories: cal ? Number(cal) : undefined,
             modifiedProtein: protein ? Number(protein) : undefined,
@@ -110,13 +110,13 @@ function MealEditForm({ item, onSubmit, onBack }) {
             </div>
 
             <button
-                onClick={() => handleSubmit('MODIFIED')}
+                onClick={() => handleSubmit('COMPLETE_WITH_MODIFY')}
                 className="w-full bg-blue-500 text-white text-[13px] font-semibold py-3 rounded-xl mt-1"
             >
                 수정 후 완수
             </button>
             <button
-                onClick={() => handleSubmit('EDITED')}
+                onClick={() => handleSubmit('MODIFY')}
                 className="w-full bg-[#fff8e6] text-[#b55a00] border border-[#f5e0b0] text-[13px] font-semibold py-3 rounded-xl"
             >
                 수정만 하기
@@ -142,13 +142,13 @@ function WorkoutEditForm({ item, onSubmit, onBack }) {
 
     useEffect(() => { nameRef.current?.focus(); }, []);
 
-    const handleSubmit = (saveStatus) => {
+    const handleSubmit = (targetAction) => {
         if (!name.trim() && !cal) {
             alert("운동명 또는 칼로리를 입력해 주세요.");
             return;
         }
         onSubmit({
-            status: saveStatus,
+            action: targetAction,
             modifiedName: name.trim() || undefined,
             modifiedCalories: cal ? Number(cal) : undefined,
             modifiedSets: sets ? Number(sets) : undefined,
@@ -193,13 +193,13 @@ function WorkoutEditForm({ item, onSubmit, onBack }) {
             </div>
 
             <button
-                onClick={() => handleSubmit('MODIFIED')}
+                onClick={() => handleSubmit('COMPLETE_WITH_MODIFY')}
                 className="w-full bg-blue-500 text-white text-[13px] font-semibold py-3 rounded-xl mt-1"
             >
                 수정 후 완수
             </button>
             <button
-                onClick={() => handleSubmit('EDITED')}
+                onClick={() => handleSubmit('MODIFY')}
                 className="w-full bg-[#fff8e6] text-[#b55a00] border border-[#f5e0b0] text-[13px] font-semibold py-3 rounded-xl"
             >
                 수정만 하기
@@ -242,7 +242,8 @@ export default function PlanItemActionSheet({ item, onClose, onApply }) {
 
     if (!item) return null;
 
-    const isDone = ["COMPLETED", "SKIPPED", "MODIFIED", "EDITED"].includes(item.status);
+    // 미완료(PENDING)를 제외한 액션 이력이 있는 상태인지 체크
+    const isProcessed = ["COMPLETED", "SKIPPED"].includes(item.status) || item.isModified;
     const isMeal = item.foodName !== undefined;
     const displayName = item.effectiveName ?? item.foodName ?? item.exerciseName ?? "-";
 
@@ -274,7 +275,7 @@ export default function PlanItemActionSheet({ item, onClose, onApply }) {
                         {isMeal
                             ? `${item.calories} kcal · P${item.protein ?? 0}g C${item.carbs ?? 0}g F${item.fat ?? 0}g`
                             : `${item.calories} kcal · ${item.sets ?? "-"}세트 × ${item.reps ?? "-"}회`}
-                        {(item.status === "MODIFIED" || item.status === "EDITED") && (
+                        {item.isModified && (
                             <span className="ml-2 text-[#1a9e75] font-medium">
                                 (수정됨: {item.effectiveCalories} kcal)
                             </span>
@@ -290,7 +291,7 @@ export default function PlanItemActionSheet({ item, onClose, onApply }) {
                                 label="완수"
                                 desc="계획대로 완료했어요"
                                 iconBg="bg-[#eef3ff]"
-                                onClick={() => handle({ status: "COMPLETED" })}
+                                onClick={() => handle({ action: "COMPLETE" })}
                             />
                         )}
                         {item.status !== "SKIPPED" && (
@@ -299,25 +300,23 @@ export default function PlanItemActionSheet({ item, onClose, onApply }) {
                                 label="미실행"
                                 desc="오늘은 건너뛸게요"
                                 iconBg="bg-[#f5f3f0]"
-                                onClick={() => handle({ status: "SKIPPED" })}
+                                onClick={() => handle({ action: "SKIP" })}
                             />
                         )}
-                        {!["MODIFIED", "EDITED"].includes(item.status) && (
-                            <ActionBtn
-                                icon={<EditIcon />}
-                                label="수정"
-                                desc="다른 내용으로 바꿔서 완수했어요"
-                                iconBg="bg-[#fff8e6]"
-                                onClick={() => setView(isMeal ? "editMeal" : "editWorkout")}
-                            />
-                        )}
-                        {isDone && (
+                        <ActionBtn
+                            icon={<EditIcon />}
+                            label="수정"
+                            desc="내용을 변경하거나 변경 후 완수해요"
+                            iconBg="bg-[#fff8e6]"
+                            onClick={() => setView(isMeal ? "editMeal" : "editWorkout")}
+                        />
+                        {isProcessed && (
                             <ActionBtn
                                 icon={<UndoIcon />}
                                 label="되돌리기"
                                 desc="미완료 상태로 되돌려요"
                                 iconBg="bg-[#f5f3f0]"
-                                onClick={() => handle({ status: "PENDING" })}
+                                onClick={() => handle({ action: "RESET" })}
                             />
                         )}
                         <button onClick={onClose} className="text-[12px] text-[#8a8680] text-center py-3">

@@ -1,3 +1,4 @@
+// DashboardResponse.java
 package com.fitroute.domain.plan.dto;
 
 import com.fitroute.domain.plan.entity.PlanItem;
@@ -79,7 +80,7 @@ public class DashboardResponse {
                     .carbs(item.getCarbs() != null ? item.getCarbs() : 0)
                     .fat(item.getFat() != null ? item.getFat() : 0)
                     .status(item.getStatus())
-                    .isModified(item.getStatus() == PlanItemStatus.MODIFIED)
+                    .isModified(item.isModified())
                     .build();
         }
     }
@@ -118,7 +119,7 @@ public class DashboardResponse {
                     .sets(item.getSets())
                     .reps(item.getReps())
                     .status(item.getStatus())
-                    .isModified(item.getStatus() == PlanItemStatus.MODIFIED)
+                    .isModified(item.isModified())
                     .build();
         }
     }
