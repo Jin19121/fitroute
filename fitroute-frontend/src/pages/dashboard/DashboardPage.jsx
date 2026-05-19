@@ -66,14 +66,13 @@ const POLL_MS = 3000;
 
 function useDashboard() {
     const [data, setData] = useState(null);
-    const [latestWeightKg, setLatestWeightKg] = useState(null);  // ★ 추가
+    const [latestWeightKg, setLatestWeightKg] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const poll = useRef(null);
 
     const load = useCallback(async () => {
         try {
-            // ★ 대시보드 + 최근 체중 병렬 조회
             const [result, latestWeight] = await Promise.all([
                 fetchDashboard(),
                 getLatestWeight().catch(() => null),
@@ -91,17 +90,26 @@ function useDashboard() {
         }
     }, []);
 
+    // 최초 로드 + 폴링 클린업
     useEffect(() => {
         load();
         return () => clearTimeout(poll.current);
     }, [load]);
 
+    // 탭 복귀 시 재조회
     useEffect(() => {
         const onVisible = () => {
             if (document.visibilityState === 'visible') load();
         };
         document.addEventListener('visibilitychange', onVisible);
         return () => document.removeEventListener('visibilitychange', onVisible);
+    }, [load]);
+
+    // ★ 핵심 수정: QuickAddFab 저장 후 BottomNav가 dispatch한 이벤트를 수신해 재조회
+    useEffect(() => {
+        const onPlanUpdated = () => load();
+        window.addEventListener('fitroute:plan-updated', onPlanUpdated);
+        return () => window.removeEventListener('fitroute:plan-updated', onPlanUpdated);
     }, [load]);
 
     const applyAction = useCallback(async (itemId, payload) => {
@@ -114,7 +122,7 @@ function useDashboard() {
         }
     }, [load]);
 
-    return { data, latestWeightKg, loading, error, applyAction, reload: load };  // ★ latestWeightKg 반환
+    return { data, latestWeightKg, loading, error, applyAction, reload: load };
 }
 
 // ─── Sub-components ────────────────────────────────
@@ -257,7 +265,7 @@ function WorkoutSection({ workouts, onTap }) {
 }
 
 export default function DashboardPage() {
-    const { data, latestWeightKg, loading, error, applyAction } = useDashboard();  // ★ latestWeightKg 추가
+    const { data, latestWeightKg, loading, error, applyAction } = useDashboard();
     const [activeItem, setActiveItem] = useState(null);
 
     if (loading) return (
@@ -335,7 +343,6 @@ export default function DashboardPage() {
                 <div className="flex gap-2 mt-3">
                     {[
                         { n: data.goalWeight?.toFixed(1), u: "kg", l: "목표 체중" },
-                        // ★ 수정: weightToLose 계산값 사용
                         { n: `-${weightToLose?.toFixed(1)}`, u: "kg", l: "남은 감량", c: "#ff8c42" },
                         { n: data.targetPeriodWeeks, u: "주", l: "목표 기간" },
                     ].map(({ n, u, l, c }) => (
@@ -426,10 +433,8 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Bottom nav — 기존 정적 코드를 아래로 교체 */}
             <BottomNav />
 
-            {/* Action Sheet */}
             <PlanItemActionSheet
                 item={activeItem}
                 onClose={() => setActiveItem(null)}
