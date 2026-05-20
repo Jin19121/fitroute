@@ -5,63 +5,100 @@ import PlanItemActionSheet from "../../components/PlanItemActionSheet";
 import BottomNav from '../../components/common/BottomNav';
 import { getLatestWeight } from "../../api/weight";
 
-// ─── API 계층 ─────────────────────────────────────
+// ─── API 계층 ──────────────────────────────────────────────────────────────
 const fetchDashboard = () =>
     apiClient.get('/api/dashboard/today').then(r => r.data);
 
 const applyItemAction = (itemId, payload) =>
     apiClient.patch(`/api/plans/items/${itemId}/action`, payload);
 
-// ─── 낙관적 업데이트 헬퍼 ──────────────────────────
+// ─── action → 낙관적 상태 변환 ────────────────────────────────────────────
+function buildOptimisticPatch(item, payload) {
+    const { action } = payload;
+    const baseName = item.effectiveName ?? item.foodName ?? item.exerciseName;
+    const baseCal = item.effectiveCalories ?? item.calories;
+
+    switch (action) {
+        case 'COMPLETE':
+            return { status: 'COMPLETED', isModified: false };
+
+        case 'SKIP':
+            return { status: 'SKIPPED', isModified: false };
+
+        case 'RESET':
+            return {
+                status: 'PENDING',
+                effectiveName: item.foodName ?? item.exerciseName,
+                effectiveCalories: item.calories,
+                isModified: false,
+            };
+
+        case 'MODIFY':
+            return {
+                status: item.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
+                isModified: true,
+                effectiveName: payload.modifiedName ?? baseName,
+                effectiveCalories: payload.modifiedCalories ?? baseCal,
+                ...(payload.modifiedProtein != null && { protein: payload.modifiedProtein }),
+                ...(payload.modifiedCarbs != null && { carbs: payload.modifiedCarbs }),
+                ...(payload.modifiedFat != null && { fat: payload.modifiedFat }),
+                ...(payload.modifiedSets != null && { sets: payload.modifiedSets }),
+                ...(payload.modifiedReps != null && { reps: payload.modifiedReps }),
+            };
+
+        case 'COMPLETE_WITH_MODIFY':
+            return {
+                status: 'COMPLETED',
+                isModified: true,
+                effectiveName: payload.modifiedName ?? baseName,
+                effectiveCalories: payload.modifiedCalories ?? baseCal,
+                ...(payload.modifiedProtein != null && { protein: payload.modifiedProtein }),
+                ...(payload.modifiedCarbs != null && { carbs: payload.modifiedCarbs }),
+                ...(payload.modifiedFat != null && { fat: payload.modifiedFat }),
+                ...(payload.modifiedSets != null && { sets: payload.modifiedSets }),
+                ...(payload.modifiedReps != null && { reps: payload.modifiedReps }),
+            };
+
+        default:
+            return {};
+    }
+}
+
 function applyOptimistic(prev, itemId, payload) {
     if (!prev?.today) return prev;
 
     const patch = (list) =>
         list.map((item) => {
             if (item.id !== itemId) return item;
-            const { status, modifiedName, modifiedCalories,
-                modifiedProtein, modifiedCarbs, modifiedFat,
-                modifiedSets, modifiedReps } = payload;
-
-            const next = { ...item, status };
-
-            if (status === "MODIFIED") {
-                next.effectiveName = modifiedName ?? item.effectiveName ?? item.foodName ?? item.exerciseName;
-                next.effectiveCalories = modifiedCalories ?? item.effectiveCalories ?? item.calories;
-                next.isModified = true;
-                if (modifiedProtein != null) next.protein = modifiedProtein;
-                if (modifiedCarbs != null) next.carbs = modifiedCarbs;
-                if (modifiedFat != null) next.fat = modifiedFat;
-                if (modifiedSets != null) next.sets = modifiedSets;
-                if (modifiedReps != null) next.reps = modifiedReps;
-            } else if (status === "PENDING") {
-                next.effectiveName = item.foodName ?? item.exerciseName;
-                next.effectiveCalories = item.calories;
-                next.isModified = false;
-            } else {
-                next.isModified = false;
-            }
-            return next;
+            const updates = buildOptimisticPatch(item, payload);
+            return { ...item, ...updates };
         });
 
-    const meals = patch(prev.today.meals);
-    const workouts = patch(prev.today.workouts);
+    const meals = patch(prev.today.meals ?? []);
+    const workouts = patch(prev.today.workouts ?? []);
 
     const consumed = meals
-        .filter((m) => m.status === "COMPLETED" || m.status === "MODIFIED")
-        .reduce((s, m) => s + (m.effectiveCalories ?? m.calories), 0);
+        .filter((m) => m.status === 'COMPLETED')
+        .reduce((s, m) => s + (m.effectiveCalories ?? m.calories ?? 0), 0);
     const burned = workouts
-        .filter((w) => w.status === "COMPLETED" || w.status === "MODIFIED")
-        .reduce((s, w) => s + (w.effectiveCalories ?? w.calories), 0);
+        .filter((w) => w.status === 'COMPLETED')
+        .reduce((s, w) => s + (w.effectiveCalories ?? w.calories ?? 0), 0);
     const remaining = Math.max(0, (prev.targetCaloriesPerDay ?? 0) - consumed);
 
     return {
         ...prev,
-        today: { ...prev.today, meals, workouts, consumedCalories: consumed, burnedCalories: burned, remainingCalories: remaining },
+        today: {
+            ...prev.today,
+            meals,
+            workouts,
+            consumedCalories: consumed,
+            burnedCalories: burned,
+            remainingCalories: remaining,
+        },
     };
 }
 
-// ─── Custom hook ──────────────────────────────────
+// ─── Custom hook ──────────────────────────────────────────────────────────
 const POLL_MS = 3000;
 
 function useDashboard() {
@@ -80,7 +117,7 @@ function useDashboard() {
             setData(result);
             setLatestWeightKg(latestWeight?.weightKg ?? null);
             setError(null);
-            if (result.planStatus === "GENERATING") {
+            if (result.planStatus === 'GENERATING') {
                 poll.current = setTimeout(load, POLL_MS);
             }
         } catch (e) {
@@ -90,13 +127,11 @@ function useDashboard() {
         }
     }, []);
 
-    // 최초 로드 + 폴링 클린업
     useEffect(() => {
         load();
         return () => clearTimeout(poll.current);
     }, [load]);
 
-    // 탭 복귀 시 재조회
     useEffect(() => {
         const onVisible = () => {
             if (document.visibilityState === 'visible') load();
@@ -105,7 +140,6 @@ function useDashboard() {
         return () => document.removeEventListener('visibilitychange', onVisible);
     }, [load]);
 
-    // ★ 핵심 수정: QuickAddFab 저장 후 BottomNav가 dispatch한 이벤트를 수신해 재조회
     useEffect(() => {
         const onPlanUpdated = () => load();
         window.addEventListener('fitroute:plan-updated', onPlanUpdated);
@@ -113,10 +147,16 @@ function useDashboard() {
     }, [load]);
 
     const applyAction = useCallback(async (itemId, payload) => {
+        // 1. 낙관적 업데이트 (즉시 UI 반영)
         setData((prev) => applyOptimistic(prev, itemId, payload));
+
         try {
+            // 2. 서버에 실제 반영
             await applyItemAction(itemId, payload);
+            // 3. 서버 값으로 조용히 동기화 (Redis 무효화 후 최신 데이터)
+            setTimeout(() => load(), 300);
         } catch (e) {
+            // 4. 실패 시 서버 상태로 롤백
             load();
             throw e;
         }
@@ -125,11 +165,10 @@ function useDashboard() {
     return { data, latestWeightKg, loading, error, applyAction, reload: load };
 }
 
-// ─── Sub-components ────────────────────────────────
+// ─── Sub-components ────────────────────────────────────────────────────────
 const STATUS_BADGE = {
     COMPLETED: { cls: "bg-[#eef3ff] text-[#2a5cc5]", label: "완수" },
     SKIPPED: { cls: "bg-[#f0ece5] text-[#8a8680]", label: "미실행" },
-    MODIFIED: { cls: "bg-[#edfaf3] text-[#1a6b40]", label: "수정" },
 };
 
 const MEAL_BADGE = {
@@ -147,7 +186,7 @@ const WO_COLOR = {
 function ItemRow({ item, onTap }) {
     const done = item.status === "COMPLETED";
     const skip = item.status === "SKIPPED";
-    const mod = item.status === "MODIFIED";
+    const mod = item.isModified;
     const muted = done || skip;
     const badge = STATUS_BADGE[item.status];
 
@@ -155,11 +194,11 @@ function ItemRow({ item, onTap }) {
         <div
             onClick={() => onTap(item)}
             className={`flex items-center gap-2 py-3 cursor-pointer select-none
-                ${mod ? "border-l-2 border-[#1a9e75] pl-3 -ml-3" : ""}`}
+        ${mod ? "border-l-2 border-[#1a9e75] pl-3 -ml-3" : ""}`}
         >
             <div className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center
-                ${done || mod ? "bg-blue-500" : skip ? "bg-[#f0ece5]" : "border-2 border-[#d5d0ca]"}`}>
-                {(done || mod) && (
+        ${done || mod ? "bg-blue-500" : skip ? "bg-[#f0ece5]" : "border-2 border-[#d5d0ca]"}`}>
+                {(done || (mod && done)) && (
                     <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
                         <path d="M1.5 4.5L3.8 7L7.5 2" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" />
                     </svg>
@@ -173,7 +212,7 @@ function ItemRow({ item, onTap }) {
 
             <div className="flex-1 min-w-0">
                 <div className={`text-[11px] font-medium truncate
-                    ${muted ? "line-through text-[#b8b4ae]" : "text-[#1a1a1a]"}`}>
+          ${muted ? "line-through text-[#b8b4ae]" : "text-[#1a1a1a]"}`}>
                     {item.effectiveName ?? item.foodName ?? item.exerciseName}
                 </div>
                 {mod && item.foodName && item.effectiveName !== item.foodName && (
@@ -188,14 +227,19 @@ function ItemRow({ item, onTap }) {
                 )}
             </div>
 
-            {badge ? (
+            {badge && (
                 <span className={`text-[9px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${badge.cls}`}>
                     {badge.label}
                 </span>
-            ) : null}
+            )}
+            {mod && !badge && (
+                <span className="text-[9px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 bg-[#edfaf3] text-[#1a6b40]">
+                    수정
+                </span>
+            )}
 
             <span className={`text-[11px] font-semibold flex-shrink-0
-                ${done || mod ? "text-[#b8b4ae]" : "text-blue-500"}`}>
+        ${done ? "text-[#b8b4ae]" : "text-blue-500"}`}>
                 {item.effectiveCalories ?? item.calories}
             </span>
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="flex-shrink-0">
@@ -222,7 +266,9 @@ function MealSection({ meals, onTap }) {
                     if (!items.length) return null;
                     const b = MEAL_BADGE[cat];
                     const done = items.every((i) => i.status !== "PENDING");
-                    const totalKcal = items.reduce((s, i) => s + (i.effectiveCalories ?? i.calories), 0);
+                    const totalKcal = items
+                        .filter(i => i.status === 'COMPLETED')
+                        .reduce((s, i) => s + (i.effectiveCalories ?? i.calories), 0);
                     return (
                         <div key={cat} className="py-2">
                             <div className="flex items-center gap-2 mb-1">
@@ -299,9 +345,7 @@ export default function DashboardPage() {
     if (data.planStatus === "NO_PLAN" || !data.today) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center bg-[#f5f3f0] gap-3 p-6">
-                <div className="w-12 h-12 bg-[#eef3ff] rounded-2xl flex items-center justify-center text-2xl">
-                    📋
-                </div>
+                <div className="w-12 h-12 bg-[#eef3ff] rounded-2xl flex items-center justify-center text-2xl">📋</div>
                 <div className="text-[15px] font-bold text-[#1a1a1a]">플랜이 없어요</div>
                 <div className="text-[12px] text-[#8a8680] text-center">
                     AI 플랜을 생성하면<br />오늘의 식단과 운동이 표시돼요
@@ -409,10 +453,10 @@ export default function DashboardPage() {
                         },
                         {
                             label: "운동 달성",
-                            value: `${today.workouts.filter((w) => w.status !== "PENDING" && w.status !== "SKIPPED").length} / ${today.workouts.filter((w) => w.status !== "SKIPPED").length} 완료`,
+                            value: `${today.workouts.filter((w) => w.status === 'COMPLETED').length} / ${today.workouts.filter((w) => w.status !== "SKIPPED").length} 완료`,
                             pct: today.workouts.filter((w) => w.status !== "SKIPPED").length > 0
                                 ? Math.round(
-                                    today.workouts.filter((w) => w.status !== "PENDING" && w.status !== "SKIPPED").length /
+                                    today.workouts.filter((w) => w.status === 'COMPLETED').length /
                                     today.workouts.filter((w) => w.status !== "SKIPPED").length * 100
                                 )
                                 : 0,
