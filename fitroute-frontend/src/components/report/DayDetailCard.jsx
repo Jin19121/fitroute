@@ -32,7 +32,7 @@ function WorkoutDetail({ workout }) {
                 </span>
 
                 <span
-                    className={`text - [9px] font - semibold px - 2 py - 0.5 rounded - full ${badge.cls} `}
+                    className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${badge.cls}`}
                 >
                     {badge.text}
                 </span>
@@ -55,8 +55,8 @@ function WorkoutDetail({ workout }) {
                                 className="flex items-center gap-2"
                             >
                                 <div
-                                    className={`w - 4 h - 4 rounded - full flex - shrink - 0 flex items - center justify - center
-                                    ${done ? 'bg-[#4a7bff]' : 'bg-[#e5e1db]'} `}
+                                    className={`w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center
+                                    ${done ? 'bg-[#4a7bff]' : 'bg-[#e5e1db]'}`}
                                 >
                                     {done && (
                                         <svg
@@ -76,10 +76,10 @@ function WorkoutDetail({ workout }) {
                                 </div>
 
                                 <span
-                                    className={`text - [11px] flex - 1 ${done
+                                    className={`text-[11px] flex-1 ${done
                                         ? 'text-[#1a1a1a]'
                                         : 'text-[#b8b4ae] line-through'
-                                        } `}
+                                        }`}
                                 >
                                     {item.name}
                                 </span>
@@ -96,14 +96,14 @@ function WorkoutDetail({ workout }) {
 
                                 {hasDiff(item.diffCalories) && (
                                     <span
-                                        className={`text - [9px] ml - 1 font - semibold
+                                        className={`text-[9px] ml-1 font-semibold
                                         ${item.diffCalories > 0
                                                 ? 'text-red-400'
                                                 : 'text-[#4a7bff]'
-                                            } `}
+                                            }`}
                                     >
                                         {item.diffCalories > 0
-                                            ? `+ ${item.diffCalories} `
+                                            ? `+${item.diffCalories}`
                                             : item.diffCalories}{' '}
                                         kcal
                                     </span>
@@ -131,7 +131,7 @@ function DietDetail({ diet }) {
                 </span>
 
                 <span
-                    className={`text - [9px] font - semibold px - 2 py - 0.5 rounded - full ${badge.cls} `}
+                    className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${badge.cls}`}
                 >
                     {badge.text}
                 </span>
@@ -161,10 +161,10 @@ function DietDetail({ diet }) {
                             </span>
 
                             <span
-                                className={`text - [11px] flex - 1 ${done
+                                className={`text-[11px] flex-1 ${done
                                     ? 'text-[#1a1a1a]'
                                     : 'text-[#b8b4ae]'
-                                    } `}
+                                    }`}
                             >
                                 {meal.name}
                             </span>
@@ -181,14 +181,13 @@ function DietDetail({ diet }) {
 
                             {hasDiff(meal.diffCalories) && (
                                 <span
-                                    className={`text - [9px] font - semibold
-                                    ${meal.diffCalories > 0
+                                    className={`text-[9px] font-semibold ${meal.diffCalories > 0
                                             ? 'text-red-400'
                                             : 'text-[#4a7bff]'
-                                        } `}
+                                        }`}
                                 >
                                     {meal.diffCalories > 0
-                                        ? `+ ${meal.diffCalories} `
+                                        ? `+${meal.diffCalories}`
                                         : meal.diffCalories}
                                 </span>
                             )}
@@ -196,108 +195,6 @@ function DietDetail({ diet }) {
                     );
                 })}
             </div>
-        </div>
-    );
-}
-
-// ─── 체중 상세 ────────────────────────────────────────────────────────────
-
-function WeightDetail({ weight, onRecord }) {
-    return (
-        <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-[#1a1a1a]">
-                ⚖️ 체중
-            </span>
-
-            {weight?.measured ? (
-                <span className="text-[16px] font-extrabold text-[#ff8c42]">
-                    {weight.weightKg}{' '}
-                    <span className="text-[11px] font-normal text-[#8a8680]">
-                        kg
-                    </span>
-                </span>
-            ) : (
-                <button
-                    onClick={onRecord}
-                    className="text-[11px] text-[#4a7bff] font-semibold"
-                >
-                    + 체중 기록하기
-                </button>
-            )}
-        </div>
-    );
-}
-
-// ─── 메인 컴포넌트 ────────────────────────────────────────────────────────
-
-export default function DayDetailCard({
-    dayDetail,
-    loading,
-    filter,
-    onRecordWeight,
-}) {
-    if (loading) {
-        return (
-            <div className="bg-white rounded-2xl p-4 flex items-center justify-center h-24">
-                <div className="w-5 h-5 border-2 border-[#4a7bff] border-t-transparent rounded-full animate-spin" />
-            </div>
-        );
-    }
-
-    if (!dayDetail) return null;
-
-    return (
-        <div className="bg-white rounded-2xl p-4 flex flex-col gap-4">
-            {/* 날짜 헤더 */}
-            <div className="flex items-center gap-2 pb-3 border-b border-[#f0ece5]">
-                <span className="text-[13px] font-bold text-[#1a1a1a]">
-                    {dayDetail.date?.slice(5).replace('-', '/')}
-                </span>
-
-                <span className="text-[11px] text-[#8a8680]">
-                    {dayDetail.dayOfWeek}
-                </span>
-            </div>
-
-            {/* 선택된 필터 우선 표시 */}
-            {filter === 'WORKOUT' && (
-                <WorkoutDetail workout={dayDetail.workout} />
-            )}
-
-            {filter === 'DIET' && (
-                <DietDetail diet={dayDetail.diet} />
-            )}
-
-            {filter === 'WEIGHT' && (
-                <WeightDetail
-                    weight={dayDetail.weight}
-                    onRecord={onRecordWeight}
-                />
-            )}
-
-            {/* 나머지 섹션 요약 */}
-            {filter !== 'WORKOUT' &&
-                dayDetail.workout?.status !== 'NO_PLAN' && (
-                    <div className="pt-3 border-t border-[#f0ece5]">
-                        <WorkoutDetail workout={dayDetail.workout} />
-                    </div>
-                )}
-
-            {filter !== 'DIET' &&
-                dayDetail.diet?.status !== 'NO_PLAN' && (
-                    <div className="pt-3 border-t border-[#f0ece5]">
-                        <DietDetail diet={dayDetail.diet} />
-                    </div>
-                )}
-
-            {filter !== 'WEIGHT' && (
-                <div className="pt-3 border-t border-[#f0ece5]">
-                    <WeightDetail
-                        weight={dayDetail.weight}
-                        onRecord={onRecordWeight}
-                    />
-                </div>
-            )}
         </div>
     );
 }
