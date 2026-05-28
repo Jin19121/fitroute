@@ -5,84 +5,79 @@ import PlanItemActionSheet from "../../components/PlanItemActionSheet";
 import BottomNav from '../../components/common/BottomNav';
 import { getLatestWeight } from "../../api/weight";
 
-// ─── API 계층 ──────────────────────────────────────────────────────────────
+// ─── API ──────────────────────────────────────────
 const fetchDashboard = () =>
     apiClient.get('/api/dashboard/today').then(r => r.data);
 
 const applyItemAction = (itemId, payload) =>
     apiClient.patch(`/api/plans/items/${itemId}/action`, payload);
 
-// ─── action → 낙관적 상태 변환 ────────────────────────────────────────────
-function buildOptimisticPatch(item, payload) {
-    const { action } = payload;
-    const baseName = item.effectiveName ?? item.foodName ?? item.exerciseName;
-    const baseCal = item.effectiveCalories ?? item.calories;
-
-    switch (action) {
-        case 'COMPLETE':
-            return { status: 'COMPLETED', isModified: false };
-
-        case 'SKIP':
-            return { status: 'SKIPPED', isModified: false };
-
-        case 'RESET':
-            return {
-                status: 'PENDING',
-                effectiveName: item.foodName ?? item.exerciseName,
-                effectiveCalories: item.calories,
-                isModified: false,
-            };
-
-        case 'MODIFY':
-            return {
-                status: item.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
-                isModified: true,
-                effectiveName: payload.modifiedName ?? baseName,
-                effectiveCalories: payload.modifiedCalories ?? baseCal,
-                ...(payload.modifiedProtein != null && { protein: payload.modifiedProtein }),
-                ...(payload.modifiedCarbs != null && { carbs: payload.modifiedCarbs }),
-                ...(payload.modifiedFat != null && { fat: payload.modifiedFat }),
-                ...(payload.modifiedSets != null && { sets: payload.modifiedSets }),
-                ...(payload.modifiedReps != null && { reps: payload.modifiedReps }),
-            };
-
-        case 'COMPLETE_WITH_MODIFY':
-            return {
-                status: 'COMPLETED',
-                isModified: true,
-                effectiveName: payload.modifiedName ?? baseName,
-                effectiveCalories: payload.modifiedCalories ?? baseCal,
-                ...(payload.modifiedProtein != null && { protein: payload.modifiedProtein }),
-                ...(payload.modifiedCarbs != null && { carbs: payload.modifiedCarbs }),
-                ...(payload.modifiedFat != null && { fat: payload.modifiedFat }),
-                ...(payload.modifiedSets != null && { sets: payload.modifiedSets }),
-                ...(payload.modifiedReps != null && { reps: payload.modifiedReps }),
-            };
-
-        default:
-            return {};
-    }
-}
-
+// ─── 낙관적 업데이트 ────────────────────────────────
+// ─── 변경: action 기반으로 전면 교체 ─────────────────
 function applyOptimistic(prev, itemId, payload) {
     if (!prev?.today) return prev;
+
+    const { action, modifiedName, modifiedCalories,
+        modifiedProtein, modifiedCarbs, modifiedFat,
+        modifiedSets, modifiedReps } = payload;
 
     const patch = (list) =>
         list.map((item) => {
             if (item.id !== itemId) return item;
-            const updates = buildOptimisticPatch(item, payload);
-            return { ...item, ...updates };
+            const next = { ...item };
+
+            switch (action) {
+                case 'COMPLETE':
+                    next.status = 'COMPLETED';
+                    break;
+
+                case 'SKIP':
+                    next.status = 'SKIPPED';
+                    break;
+
+                case 'MODIFY':
+                    // status는 PENDING 유지
+                    next.isModified = true;
+                    if (modifiedName) next.effectiveName = modifiedName;
+                    if (modifiedCalories) next.effectiveCalories = modifiedCalories;
+                    if (modifiedProtein) next.protein = modifiedProtein;
+                    if (modifiedCarbs) next.carbs = modifiedCarbs;
+                    if (modifiedFat) next.fat = modifiedFat;
+                    break;
+
+                case 'COMPLETE_WITH_MODIFY':
+                    next.status = 'COMPLETED';
+                    next.isModified = true;
+                    if (modifiedName) next.effectiveName = modifiedName;
+                    if (modifiedCalories) next.effectiveCalories = modifiedCalories;
+                    if (modifiedProtein) next.protein = modifiedProtein;
+                    if (modifiedCarbs) next.carbs = modifiedCarbs;
+                    if (modifiedFat) next.fat = modifiedFat;
+                    break;
+
+                case 'RESET':
+                    next.status = 'PENDING';
+                    next.isModified = false;
+                    next.effectiveName = item.foodName ?? item.exerciseName;
+                    next.effectiveCalories = item.calories;
+                    break;
+
+                default:
+                    break;
+            }
+            return next;
         });
 
-    const meals = patch(prev.today.meals ?? []);
-    const workouts = patch(prev.today.workouts ?? []);
+    const meals = patch(prev.today.meals);
+    const workouts = patch(prev.today.workouts);
 
+    // ─── 변경: COMPLETED 단일 조건으로 집계 ─────────────
     const consumed = meals
         .filter((m) => m.status === 'COMPLETED')
-        .reduce((s, m) => s + (m.effectiveCalories ?? m.calories ?? 0), 0);
+        .reduce((s, m) => s + (m.effectiveCalories ?? m.calories), 0);
     const burned = workouts
         .filter((w) => w.status === 'COMPLETED')
-        .reduce((s, w) => s + (w.effectiveCalories ?? w.calories ?? 0), 0);
+        .reduce((s, w) => s + (w.effectiveCalories ?? w.calories), 0);
     const remaining = Math.max(0, (prev.targetCaloriesPerDay ?? 0) - consumed);
 
     return {
@@ -98,7 +93,7 @@ function applyOptimistic(prev, itemId, payload) {
     };
 }
 
-// ─── Custom hook ──────────────────────────────────────────────────────────
+// ─── Custom hook ──────────────────────────────────
 const POLL_MS = 3000;
 
 function useDashboard() {
@@ -146,17 +141,12 @@ function useDashboard() {
         return () => window.removeEventListener('fitroute:plan-updated', onPlanUpdated);
     }, [load]);
 
+    // ─── 변경: action 기반 낙관적 업데이트 ───────────────
     const applyAction = useCallback(async (itemId, payload) => {
-        // 1. 낙관적 업데이트 (즉시 UI 반영)
         setData((prev) => applyOptimistic(prev, itemId, payload));
-
         try {
-            // 2. 서버에 실제 반영
             await applyItemAction(itemId, payload);
-            // 3. 서버 값으로 조용히 동기화 (Redis 무효화 후 최신 데이터)
-            setTimeout(() => load(), 300);
         } catch (e) {
-            // 4. 실패 시 서버 상태로 롤백
             load();
             throw e;
         }
@@ -165,40 +155,42 @@ function useDashboard() {
     return { data, latestWeightKg, loading, error, applyAction, reload: load };
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────────
+// ─── Sub-components ────────────────────────────────
 const STATUS_BADGE = {
-    COMPLETED: { cls: "bg-[#eef3ff] text-[#2a5cc5]", label: "완수" },
-    SKIPPED: { cls: "bg-[#f0ece5] text-[#8a8680]", label: "미실행" },
+    COMPLETED: { cls: 'bg-[#eef3ff] text-[#2a5cc5]', label: '완수' },
+    SKIPPED: { cls: 'bg-[#f0ece5] text-[#8a8680]', label: '미실행' },
 };
 
 const MEAL_BADGE = {
-    BREAKFAST: { bg: "bg-[#fff1e6]", text: "text-[#b55a00]", label: "아침" },
-    LUNCH: { bg: "bg-[#eef3ff]", text: "text-[#2a5cc5]", label: "점심" },
-    DINNER: { bg: "bg-[#edfaf3]", text: "text-[#1a6b40]", label: "저녁" },
-    SNACK: { bg: "bg-[#faf0ff]", text: "text-[#7b2fab]", label: "간식" },
+    BREAKFAST: { bg: 'bg-[#fff1e6]', text: 'text-[#b55a00]', label: '아침' },
+    LUNCH: { bg: 'bg-[#eef3ff]', text: 'text-[#2a5cc5]', label: '점심' },
+    DINNER: { bg: 'bg-[#edfaf3]', text: 'text-[#1a6b40]', label: '저녁' },
+    SNACK: { bg: 'bg-[#faf0ff]', text: 'text-[#7b2fab]', label: '간식' },
 };
 
 const WO_COLOR = {
-    CHEST: "#4a7bff", BACK: "#ff8c42", LEGS: "#1a6b40", SHOULDERS: "#a855f7",
-    ARMS: "#f59e0b", CORE: "#ef4444", CARDIO: "#06b6d4", REST: "#9ca3af",
+    CHEST: '#4a7bff', BACK: '#ff8c42', LEGS: '#1a6b40', SHOULDERS: '#a855f7',
+    ARMS: '#f59e0b', CORE: '#ef4444', CARDIO: '#06b6d4', REST: '#9ca3af',
 };
 
 function ItemRow({ item, onTap }) {
-    const done = item.status === "COMPLETED";
-    const skip = item.status === "SKIPPED";
-    const mod = item.isModified;
+    // ─── 변경: done 판정 COMPLETED 단일 조건 ─────────────
+    const done = item.status === 'COMPLETED';
+    const skip = item.status === 'SKIPPED';
     const muted = done || skip;
+
+    // ─── 변경: MODIFIED 키 제거 ──────────────────────────
     const badge = STATUS_BADGE[item.status];
 
     return (
         <div
             onClick={() => onTap(item)}
             className={`flex items-center gap-2 py-3 cursor-pointer select-none
-        ${mod ? "border-l-2 border-[#1a9e75] pl-3 -ml-3" : ""}`}
+                ${item.isModified ? 'border-l-2 border-[#1a9e75] pl-3 -ml-3' : ''}`}
         >
             <div className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center
-        ${done || mod ? "bg-blue-500" : skip ? "bg-[#f0ece5]" : "border-2 border-[#d5d0ca]"}`}>
-                {(done || (mod && done)) && (
+                ${done ? 'bg-blue-500' : skip ? 'bg-[#f0ece5]' : 'border-2 border-[#d5d0ca]'}`}>
+                {done && (
                     <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
                         <path d="M1.5 4.5L3.8 7L7.5 2" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" />
                     </svg>
@@ -212,19 +204,22 @@ function ItemRow({ item, onTap }) {
 
             <div className="flex-1 min-w-0">
                 <div className={`text-[11px] font-medium truncate
-          ${muted ? "line-through text-[#b8b4ae]" : "text-[#1a1a1a]"}`}>
+                    ${muted ? 'line-through text-[#b8b4ae]' : 'text-[#1a1a1a]'}`}>
                     {item.effectiveName ?? item.foodName ?? item.exerciseName}
                 </div>
-                {mod && item.foodName && item.effectiveName !== item.foodName && (
-                    <div className="text-[9px] text-[#1a9e75] mt-0.5">
-                        원본: {item.foodName} → {item.effectiveCalories} kcal
-                    </div>
-                )}
-                {mod && item.exerciseName && item.effectiveName !== item.exerciseName && (
-                    <div className="text-[9px] text-[#1a9e75] mt-0.5">
-                        원본: {item.exerciseName} → {item.effectiveCalories} kcal
-                    </div>
-                )}
+                {/* ─── 변경: isModified 플래그로 수정 이력 표시 ── */}
+                {item.isModified && item.foodName &&
+                    item.effectiveName !== item.foodName && (
+                        <div className="text-[9px] text-[#1a9e75] mt-0.5">
+                            원본: {item.foodName} → {item.effectiveCalories} kcal
+                        </div>
+                    )}
+                {item.isModified && item.exerciseName &&
+                    item.effectiveName !== item.exerciseName && (
+                        <div className="text-[9px] text-[#1a9e75] mt-0.5">
+                            원본: {item.exerciseName} → {item.effectiveCalories} kcal
+                        </div>
+                    )}
             </div>
 
             {badge && (
@@ -232,14 +227,15 @@ function ItemRow({ item, onTap }) {
                     {badge.label}
                 </span>
             )}
-            {mod && !badge && (
+            {/* ─── 변경: isModified 뱃지 별도 표시 ────────────── */}
+            {item.isModified && (
                 <span className="text-[9px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 bg-[#edfaf3] text-[#1a6b40]">
-                    수정
+                    수정됨
                 </span>
             )}
 
             <span className={`text-[11px] font-semibold flex-shrink-0
-        ${done ? "text-[#b8b4ae]" : "text-blue-500"}`}>
+                ${done ? 'text-[#b8b4ae]' : 'text-blue-500'}`}>
                 {item.effectiveCalories ?? item.calories}
             </span>
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="flex-shrink-0">
@@ -250,7 +246,7 @@ function ItemRow({ item, onTap }) {
 }
 
 function MealSection({ meals, onTap }) {
-    const grouped = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"].reduce((acc, cat) => {
+    const grouped = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'].reduce((acc, cat) => {
         acc[cat] = meals.filter((m) => m.category === cat);
         return acc;
     }, {});
@@ -265,9 +261,10 @@ function MealSection({ meals, onTap }) {
                 {Object.entries(grouped).map(([cat, items]) => {
                     if (!items.length) return null;
                     const b = MEAL_BADGE[cat];
-                    const done = items.every((i) => i.status !== "PENDING");
+                    const done = items.every((i) => i.status !== 'PENDING');
+                    // ─── 변경: COMPLETED 단일 조건 집계 ─────────────
                     const totalKcal = items
-                        .filter(i => i.status === 'COMPLETED')
+                        .filter((i) => i.status === 'COMPLETED')
                         .reduce((s, i) => s + (i.effectiveCalories ?? i.calories), 0);
                     return (
                         <div key={cat} className="py-2">
@@ -275,8 +272,8 @@ function MealSection({ meals, onTap }) {
                                 <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${b.bg} ${b.text}`}>
                                     {b.label}
                                 </span>
-                                <span className={`text-[9px] ml-auto ${done ? "text-[#b8b4ae]" : "text-blue-500 font-semibold"}`}>
-                                    {done ? `${totalKcal} kcal ✓` : "미기록"}
+                                <span className={`text-[9px] ml-auto ${done ? 'text-[#b8b4ae]' : 'text-blue-500 font-semibold'}`}>
+                                    {done ? `${totalKcal} kcal ✓` : '미기록'}
                                 </span>
                             </div>
                             {items.map((item) => (
@@ -301,7 +298,7 @@ function WorkoutSection({ workouts, onTap }) {
                 {workouts.map((item) => (
                     <div key={item.id} className="flex items-center gap-2 py-3 cursor-pointer" onClick={() => onTap(item)}>
                         <div className="w-2 h-2 rounded-full flex-shrink-0"
-                            style={{ background: WO_COLOR[item.category] ?? "#9ca3af" }} />
+                            style={{ background: WO_COLOR[item.category] ?? '#9ca3af' }} />
                         <ItemRow item={item} onTap={onTap} />
                     </div>
                 ))}
@@ -327,7 +324,7 @@ export default function DashboardPage() {
         </div>
     );
 
-    if (data.planStatus === "GENERATING") {
+    if (data.planStatus === 'GENERATING') {
         return (
             <div className="flex-1 bg-[#1a1a1a] flex flex-col items-center justify-center p-6 gap-3">
                 <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center">
@@ -342,7 +339,7 @@ export default function DashboardPage() {
         );
     }
 
-    if (data.planStatus === "NO_PLAN" || !data.today) {
+    if (data.planStatus === 'NO_PLAN' || !data.today) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center bg-[#f5f3f0] gap-3 p-6">
                 <div className="w-12 h-12 bg-[#eef3ff] rounded-2xl flex items-center justify-center text-2xl">📋</div>
@@ -374,24 +371,24 @@ export default function DashboardPage() {
                 <div className="flex justify-between items-center py-3">
                     <span className="text-[11px] text-[#666]">안녕하세요, {data.userName}님 👋</span>
                     <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-[11px] text-white font-bold">
-                        {data.userName?.charAt(0) ?? "?"}
+                        {data.userName?.charAt(0) ?? '?'}
                     </div>
                 </div>
                 <div className="text-[22px] font-extrabold text-white leading-tight tracking-tight">
                     오늘도<br />잘 해봐요!
                 </div>
                 <div className="text-[11px] text-[#555] mt-1">
-                    D-{data.daysRemaining} · 이번 주{" "}
+                    D-{data.daysRemaining} · 이번 주{' '}
                     <span className="text-blue-400 font-semibold">{data.weeklyAchievementRate}%</span> 달성
                 </div>
                 <div className="flex gap-2 mt-3">
                     {[
-                        { n: data.goalWeight?.toFixed(1), u: "kg", l: "목표 체중" },
-                        { n: `-${weightToLose?.toFixed(1)}`, u: "kg", l: "남은 감량", c: "#ff8c42" },
-                        { n: data.targetPeriodWeeks, u: "주", l: "목표 기간" },
+                        { n: data.goalWeight?.toFixed(1), u: 'kg', l: '목표 체중' },
+                        { n: `-${weightToLose?.toFixed(1)}`, u: 'kg', l: '남은 감량', c: '#ff8c42' },
+                        { n: data.targetPeriodWeeks, u: '주', l: '목표 기간' },
                     ].map(({ n, u, l, c }) => (
                         <div key={l} className="flex-1 bg-white/[0.07] rounded-xl p-2 text-center">
-                            <div className="text-[13px] font-bold" style={{ color: c ?? "#fff" }}>
+                            <div className="text-[13px] font-bold" style={{ color: c ?? '#fff' }}>
                                 {n}<span className="text-[9px] text-[#555] font-normal"> {u}</span>
                             </div>
                             <div className="text-[9px] text-[#555] mt-0.5">{l}</div>
@@ -409,7 +406,7 @@ export default function DashboardPage() {
                         <circle cx="32" cy="32" r={r} fill="none" stroke="#fff" strokeWidth="6"
                             strokeDasharray={`${circ * pct} ${circ * (1 - pct)}`}
                             strokeLinecap="round" transform="rotate(-90 32 32)"
-                            style={{ transition: "stroke-dasharray 0.6s ease" }} />
+                            style={{ transition: 'stroke-dasharray 0.6s ease' }} />
                         <text x="32" y="36" textAnchor="middle" fontSize="12" fontWeight="800" fill="#fff">
                             {Math.round(pct * 100)}%
                         </text>
@@ -440,27 +437,28 @@ export default function DashboardPage() {
                 <div className="bg-white rounded-2xl p-3 flex flex-col gap-3">
                     {[
                         {
-                            label: "이번 주 달성률",
+                            label: '이번 주 달성률',
                             value: `${data.weeklyAchievementRate}%`,
                             pct: data.weeklyAchievementRate,
-                            color: "#4a7bff",
+                            color: '#4a7bff',
                         },
                         {
-                            label: "오늘 칼로리",
+                            label: '오늘 칼로리',
                             value: `${today.consumedCalories.toLocaleString()} / ${data.targetCaloriesPerDay?.toLocaleString()} kcal`,
                             pct: Math.round(pct * 100),
-                            color: "#ff8c42",
+                            color: '#ff8c42',
                         },
                         {
-                            label: "운동 달성",
-                            value: `${today.workouts.filter((w) => w.status === 'COMPLETED').length} / ${today.workouts.filter((w) => w.status !== "SKIPPED").length} 완료`,
-                            pct: today.workouts.filter((w) => w.status !== "SKIPPED").length > 0
+                            label: '운동 달성',
+                            // ─── 변경: COMPLETED 단일 조건 ───────────────
+                            value: `${today.workouts.filter((w) => w.status === 'COMPLETED').length} / ${today.workouts.filter((w) => w.status !== 'SKIPPED').length} 완료`,
+                            pct: today.workouts.filter((w) => w.status !== 'SKIPPED').length > 0
                                 ? Math.round(
                                     today.workouts.filter((w) => w.status === 'COMPLETED').length /
-                                    today.workouts.filter((w) => w.status !== "SKIPPED").length * 100
+                                    today.workouts.filter((w) => w.status !== 'SKIPPED').length * 100
                                 )
                                 : 0,
-                            color: "#1a9e75",
+                            color: '#1a9e75',
                         },
                     ].map(({ label, value, pct: p, color }) => (
                         <div key={label}>
