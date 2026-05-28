@@ -198,3 +198,14 @@ function DietDetail({ diet }) {
         </div>
     );
 }
+
+function DayDetailCard({ workout, diet }) {
+    return (
+        <div className="flex flex-col gap-4">
+            <WorkoutDetail workout={workout} />
+            <DietDetail diet={diet} />
+        </div>
+    );
+}
+
+export default DayDetailCard;

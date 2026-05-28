@@ -14,11 +14,16 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+    defer-datasource-initialization: true  # ← 이걸 추가
     show-sql: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
+
+  sql:
+    init:
+      mode: never
 
   data:
     redis:
