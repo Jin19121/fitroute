@@ -427,21 +427,23 @@ public class DailyPlanService {
         };
     }
 
-    private int toInt(Object value, int defaultVal) {
-        if (value == null)
-            return defaultVal;
-        try {
-            return Integer.parseInt(String.valueOf(value));
-        } catch (Exception e) {
-            return defaultVal;
-        }
-    }
+    // private int toInt(Object value, int defaultVal) {
+    // if (value == null)
+    // return defaultVal;
+    // try {
+    // return Integer.parseInt(String.valueOf(value));
+    // } catch (Exception e) {
+    // return defaultVal;
+    // }
+    // }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> extractMap(Map<String, Object> source, String key) {
-        Object value = source.get(key);
-        return (value instanceof Map<?, ?>) ? (Map<String, Object>) value : Collections.emptyMap();
-    }
+    // @SuppressWarnings("unchecked")
+    // private Map<String, Object> extractMap(Map<String, Object> source, String
+    // key) {
+    // Object value = source.get(key);
+    // return (value instanceof Map<?, ?>) ? (Map<String, Object>) value :
+    // Collections.emptyMap();
+    // }
 
     private int calculateCalorieTarget(UserProfile profile) {
         if (profile.getWeight() == null || profile.getHeight() == null)
