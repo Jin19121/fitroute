@@ -25,41 +25,61 @@ public class GeminiResponseParser {
 
     private final ObjectMapper objectMapper;
 
+    // ─────────────────────────────────────────────
+    // Gemini Raw Response Text 추출
+    // ─────────────────────────────────────────────
+
     public String extractText(String rawResponse) {
         try {
             JsonNode root = objectMapper.readTree(rawResponse);
+
             return root
                     .path("candidates").get(0)
                     .path("content")
                     .path("parts").get(0)
                     .path("text")
                     .asText();
+
         } catch (Exception e) {
-            throw new IllegalStateException("Gemini 응답 텍스트 추출 실패: " + e.getMessage());
+            throw new IllegalStateException(
+                    "Gemini 응답 텍스트 추출 실패: " + e.getMessage());
         }
     }
+
+    // ─────────────────────────────────────────────
+    // Daily Calories
+    // ─────────────────────────────────────────────
 
     public int parseDailyCalories(String planJson) {
         try {
             JsonNode root = objectMapper.readTree(planJson);
             return root.path("s").path("c").asInt();
+
         } catch (Exception e) {
             log.warn("dailyCalories 파싱 실패, 기본값 사용");
             return 0;
         }
     }
 
-    // mealPlan JSON 정제 - 카테고리별로 그룹핑
+    // ─────────────────────────────────────────────
+    // Meal Plan Parsing
+    // ─────────────────────────────────────────────
+
     public Map<String, Object> parseMealPlan(String planJson) {
+
         Map<String, List<Map<String, Object>>> result = new LinkedHashMap<>();
+
         result.put("breakfast", new ArrayList<>());
         result.put("lunch", new ArrayList<>());
         result.put("dinner", new ArrayList<>());
         result.put("snack", new ArrayList<>());
 
         try {
+
             JsonNode root = objectMapper.readTree(planJson);
+
             for (JsonNode item : root.path("i")) {
+
                 if (!"M".equals(item.path("t").asText()))
                     continue;
 
@@ -70,10 +90,12 @@ public class GeminiResponseParser {
                     case "S" -> "snack";
                     default -> null;
                 };
+
                 if (category == null)
                     continue;
 
                 Map<String, Object> meal = new LinkedHashMap<>();
+
                 meal.put("name", item.path("n").asText());
                 meal.put("calories", item.path("cal").asInt());
                 meal.put("protein", item.path("p").asInt());
@@ -82,20 +104,29 @@ public class GeminiResponseParser {
 
                 result.get(category).add(meal);
             }
+
         } catch (Exception e) {
-            throw new IllegalStateException("mealPlan 파싱 실패: " + e.getMessage());
+            throw new IllegalStateException(
+                    "mealPlan 파싱 실패: " + e.getMessage());
         }
 
         return Collections.unmodifiableMap(result);
     }
 
-    // workoutPlan JSON 정제 - 부위별로 그룹핑
+    // ─────────────────────────────────────────────
+    // Workout Plan Parsing
+    // ─────────────────────────────────────────────
+
     public Map<String, Object> parseWorkoutPlan(String planJson) {
+
         Map<String, List<Map<String, Object>>> result = new LinkedHashMap<>();
 
         try {
+
             JsonNode root = objectMapper.readTree(planJson);
+
             for (JsonNode item : root.path("i")) {
+
                 if (!"W".equals(item.path("t").asText()))
                     continue;
 
@@ -110,12 +141,14 @@ public class GeminiResponseParser {
                     case "R" -> "rest";
                     default -> null;
                 };
+
                 if (category == null)
                     continue;
 
                 result.computeIfAbsent(category, k -> new ArrayList<>());
 
                 Map<String, Object> workout = new LinkedHashMap<>();
+
                 workout.put("name", item.path("n").asText());
                 workout.put("calories", item.path("cal").asInt());
                 workout.put("sets", item.path("s").asInt());
@@ -124,36 +157,107 @@ public class GeminiResponseParser {
 
                 result.get(category).add(workout);
             }
+
         } catch (Exception e) {
-            throw new IllegalStateException("workoutPlan 파싱 실패: " + e.getMessage());
+            throw new IllegalStateException(
+                    "workoutPlan 파싱 실패: " + e.getMessage());
         }
 
         return Collections.unmodifiableMap(result);
     }
 
-    public List<PlanItem> parsePlanItems(String planJson, DailyPlan dailyPlan) {
-        List<PlanItem> result = new ArrayList<>();
+    // ─────────────────────────────────────────────
+    // 식단 선택 응답 파싱
+    // ─────────────────────────────────────────────
+
+    public record SelectedMealDto(
+            Long foodId,
+            String mealType) {
+    }
+
+    public List<SelectedMealDto> parseMealSelection(
+            String planJson) {
+
+        List<SelectedMealDto> result = new ArrayList<>();
+
         try {
+
             JsonNode root = objectMapper.readTree(planJson);
-            for (JsonNode item : root.path("i")) {
-                try {
-                    result.add(parseItem(item, dailyPlan));
-                } catch (Exception e) {
-                    log.warn("PlanItem 파싱 스킵: {}", e.getMessage());
+
+            for (JsonNode meal : root.path("meals")) {
+
+                long id = meal.path("id").asLong();
+                String mealType = meal.path("meal_type").asText();
+
+                if (id > 0 && !mealType.isBlank()) {
+                    result.add(
+                            new SelectedMealDto(
+                                    id,
+                                    mealType));
                 }
             }
+
         } catch (Exception e) {
-            throw new IllegalStateException("PlanItem 리스트 파싱 실패: " + e.getMessage());
+            log.warn(
+                    "[ResponseParser] 식단 선택 파싱 실패: {}",
+                    e.getMessage());
         }
+
         return result;
     }
 
-    private PlanItem parseItem(JsonNode item, DailyPlan dailyPlan) {
-        String typeCode = item.path("t").asText();
-        PlanItemType type = typeCode.equals("M") ? PlanItemType.MEAL : PlanItemType.WORKOUT;
+    // ─────────────────────────────────────────────
+    // PlanItem Entity Parsing
+    // ─────────────────────────────────────────────
 
-        PlanItemCategory category = parseCategoryCode(item.path("c").asText(), type);
-        LocalDate date = LocalDate.parse(item.path("d").asText());
+    public List<PlanItem> parsePlanItems(
+            String planJson,
+            DailyPlan dailyPlan) {
+
+        List<PlanItem> result = new ArrayList<>();
+
+        try {
+
+            JsonNode root = objectMapper.readTree(planJson);
+
+            for (JsonNode item : root.path("i")) {
+
+                try {
+                    result.add(parseItem(item, dailyPlan));
+
+                } catch (Exception e) {
+                    log.warn(
+                            "PlanItem 파싱 스킵: {}",
+                            e.getMessage());
+                }
+            }
+
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "PlanItem 리스트 파싱 실패: "
+                            + e.getMessage());
+        }
+
+        return result;
+    }
+
+    private PlanItem parseItem(
+            JsonNode item,
+            DailyPlan dailyPlan) {
+
+        String typeCode = item.path("t").asText();
+
+        PlanItemType type = typeCode.equals("M")
+                ? PlanItemType.MEAL
+                : PlanItemType.WORKOUT;
+
+        PlanItemCategory category = parseCategoryCode(
+                item.path("c").asText(),
+                type);
+
+        LocalDate date = LocalDate.parse(
+                item.path("d").asText());
+
         int calories = item.path("cal").asInt();
 
         validateCalories(calories, type);
@@ -166,12 +270,15 @@ public class GeminiResponseParser {
                 .calories(calories);
 
         if (type == PlanItemType.MEAL) {
+
             builder
                     .foodName(item.path("n").asText())
                     .protein(item.path("p").asInt())
                     .carbs(item.path("cb").asInt())
                     .fat(item.path("f").asInt());
+
         } else {
+
             builder
                     .exerciseName(item.path("n").asText())
                     .sets(item.path("s").asInt())
@@ -182,16 +289,26 @@ public class GeminiResponseParser {
         return builder.build();
     }
 
-    private PlanItemCategory parseCategoryCode(String code, PlanItemType type) {
+    private PlanItemCategory parseCategoryCode(
+            String code,
+            PlanItemType type) {
+
         if (type == PlanItemType.MEAL) {
+
             return switch (code) {
                 case "B" -> PlanItemCategory.BREAKFAST;
                 case "L" -> PlanItemCategory.LUNCH;
                 case "D" -> PlanItemCategory.DINNER;
                 case "S" -> PlanItemCategory.SNACK;
-                default -> throw new IllegalArgumentException("알 수 없는 MEAL category: " + code);
+
+                default ->
+                    throw new IllegalArgumentException(
+                            "알 수 없는 MEAL category: "
+                                    + code);
             };
+
         } else {
+
             return switch (code) {
                 case "C" -> PlanItemCategory.CHEST;
                 case "B" -> PlanItemCategory.BACK;
@@ -201,16 +318,27 @@ public class GeminiResponseParser {
                 case "CR" -> PlanItemCategory.CORE;
                 case "CA" -> PlanItemCategory.CARDIO;
                 case "R" -> PlanItemCategory.REST;
-                default -> throw new IllegalArgumentException("알 수 없는 WORKOUT category: " + code);
+
+                default ->
+                    throw new IllegalArgumentException(
+                            "알 수 없는 WORKOUT category: "
+                                    + code);
             };
         }
     }
 
-    private void validateCalories(int calories, PlanItemType type) {
-        if (type == PlanItemType.WORKOUT && calories == 0)
+    private void validateCalories(
+            int calories,
+            PlanItemType type) {
+
+        if (type == PlanItemType.WORKOUT
+                && calories == 0)
             return;
+
         if (calories <= 0) {
-            throw new IllegalArgumentException("calories는 0보다 커야 합니다: " + calories);
+            throw new IllegalArgumentException(
+                    "calories는 0보다 커야 합니다: "
+                            + calories);
         }
     }
 }

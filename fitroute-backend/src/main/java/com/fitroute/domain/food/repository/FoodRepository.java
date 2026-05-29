@@ -17,6 +17,8 @@ public interface FoodRepository extends JpaRepository<Food, Long> {
     // ─── AI가 선택한 ID로 실제 데이터 조회 ────────────────────────
     List<Food> findByIdIn(List<Long> ids);
 
+    List<Food> findAllByTagsContaining(String tag);
+
     // ─── 식단 스타일별 필터링 (tags 컬럼 활용) ─────────────────────
     // ex) dietStyle = "저지방" 이면 tags LIKE '%저지방%' 인 음식만 조회
     @Query("SELECT f FROM Food f WHERE f.category = :category AND f.tags LIKE %:tag%")
