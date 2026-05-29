@@ -1,6 +1,8 @@
 // domain/plan/service/DailyPlanService.java
 package com.fitroute.domain.plan.service;
 
+import com.fitroute.domain.food.entity.Food;
+import com.fitroute.domain.food.repository.FoodRepository;
 import com.fitroute.domain.log.service.LogService;
 import com.fitroute.domain.plan.dto.DailyPlanResponse;
 import com.fitroute.domain.plan.dto.PlanItemCreateRequest;
@@ -12,6 +14,9 @@ import com.fitroute.domain.plan.repository.DailyPlanRepository;
 import com.fitroute.domain.plan.repository.PlanItemRepository;
 import com.fitroute.domain.user.entity.UserProfile;
 import com.fitroute.domain.user.repository.UserProfileRepository;
+import com.fitroute.global.ai.GeminiClient;
+import com.fitroute.global.ai.GeminiPromptBuilder;
+import com.fitroute.global.ai.GeminiResponseParser;
 import com.fitroute.global.enums.PlanItemCategory;
 import com.fitroute.global.enums.PlanItemStatus;
 import com.fitroute.global.enums.PlanItemType;
@@ -35,18 +40,21 @@ public class DailyPlanService {
     private final DailyPlanRepository dailyPlanRepository;
     private final PlanItemRepository planItemRepository;
     private final UserProfileRepository userProfileRepository;
-    private final AiPlanService aiPlanService;
     private final LogService logService;
+    private final FoodRepository foodRepository;
+    private final GeminiClient geminiClient;
+    private final GeminiResponseParser responseParser;
+    private final GeminiPromptBuilder promptBuilder;
 
     // ─────────────────────────────────────────────────────────────────────
-    // 오늘 플랜 생성 (버전 관리 포함)
+    // 오늘 플랜 생성
     // ─────────────────────────────────────────────────────────────────────
 
     @Transactional
     public DailyPlanResponse generateTodayPlan(Long userId) {
         LocalDate today = LocalDate.now();
 
-        // 1. ACTIVE 플랜이 이미 있으면 반환 (idempotent)
+        // ACTIVE 플랜 이미 존재 시 반환
         Optional<DailyPlan> activePlan = dailyPlanRepository
                 .findByUserIdAndPlanDateAndStatus(userId, today, DailyPlan.PlanStatus.ACTIVE);
         if (activePlan.isPresent()) {
@@ -55,36 +63,21 @@ public class DailyPlanService {
             return DailyPlanResponse.from(activePlan.get());
         }
 
-        // 2. 최신 버전 조회 → versioning 정보 계산
+        // 버전 계산
         Optional<DailyPlan> latestOpt = dailyPlanRepository
                 .findTopByUserIdAndPlanDateOrderByVersionDesc(userId, today);
+        int newVersion = latestOpt.map(p -> p.getVersion() + 1).orElse(1);
+        Long rootPlanId = latestOpt.map(DailyPlan::getRootPlanId).orElse(null);
+        latestOpt.filter(p -> p.getStatus() != DailyPlan.PlanStatus.SUPERSEDED)
+                .ifPresent(DailyPlan::supersede);
 
-        int newVersion = 1;
-        Long rootPlanId = null;
-
-        if (latestOpt.isPresent()) {
-            DailyPlan latest = latestOpt.get();
-            newVersion = latest.getVersion() + 1;
-            rootPlanId = latest.getRootPlanId();
-
-            // GENERATING/FAILED/SUPERSEDED 상태 플랜은 SUPERSEDE 처리
-            if (latest.getStatus() != DailyPlan.PlanStatus.SUPERSEDED) {
-                latest.supersede();
-            }
-        }
-
-        // 3. 사용자 프로필 + 칼로리 목표
+        // 사용자 프로필 + 칼로리 목표
         UserProfile profile = userProfileRepository.findByUserId(userId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         ErrorCode.PROFILE_NOT_FOUND.getMessage()));
         int calorieTarget = calculateCalorieTarget(profile);
 
-        // 4. AI 호출
-        Map<String, Object> aiResult = aiPlanService.generateDailyPlan(profile, calorieTarget);
-        Map<String, Object> mealPlan = extractMap(aiResult, "meal_plan");
-        Map<String, Object> workoutPlan = extractMap(aiResult, "workout_plan");
-
-        // 5. DailyPlan 생성 (버전 포함)
+        // DailyPlan 생성 (저장은 complete 후 한 번만)
         DailyPlan plan = DailyPlan.builder()
                 .userId(userId)
                 .planDate(today)
@@ -92,23 +85,42 @@ public class DailyPlanService {
                 .rootPlanId(rootPlanId)
                 .build();
 
+        // ── 식단: DB 기반 선택 ────────────────────────────────────────────
+        List<Food> availableFoods = buildMenuForUser(profile);
+        List<PlanItem> mealItems = generateMealItems(
+                profile, plan, today, calorieTarget, availableFoods);
+
+        // ── 운동: AI 자유 생성 ────────────────────────────────────────────
+        String workoutRaw = geminiClient.call(
+                promptBuilder.getPlanSystemInstruction(),
+                promptBuilder.buildWorkoutPrompt(profile));
+        String workoutJson = responseParser.extractText(workoutRaw);
+        Map<String, Object> workoutPlan = responseParser.parseWorkoutPlan(workoutJson);
+
+        // ── complete → 저장 ───────────────────────────────────────────────
         plan.complete(
                 calorieTarget,
-                mealPlan,
-                workoutPlan,
-                Map.of("model", "gemini-2.5-flash-lite",
-                        "generated_at", today.toString(),
-                        "version", newVersion));
+                buildMealPlanJson(mealItems),
+                        workoutPlan,
+                Map.of("mealSource", "DB", "workoutSource", "AI", "version", newVersion));
 
         try {
             DailyPlan saved = dailyPlanRepository.save(plan);
-            log.info("[DailyPlan] Generated v{} - userId={}, date={}, kcal={}",
-                    newVersion, userId, today, calorieTarget);
 
-            savePlanItems(saved, mealPlan, workoutPlan, today);
+            // 운동 PlanItem 파싱 + 저장 (saved 확정 후 실행)
+            List<PlanItem> workoutItems = responseParser.parsePlanItems(workoutJson, saved);
 
-            // ★ PHASE 3: 빈 Log 생성
+            // 식단 + 운동 한 번에 저장
+            List<PlanItem> allItems = new ArrayList<>(mealItems);
+            allItems.addAll(workoutItems);
+            if (!allItems.isEmpty()) {
+                planItemRepository.saveAll(allItems);
+            }
+
             logService.createForPlan(saved);
+
+            log.info("[DailyPlan] Generated v{} - userId={}, date={}, kcal={}, meal={}개, workout={}개",
+                    newVersion, userId, today, calorieTarget, mealItems.size(), workoutItems.size());
 
             return DailyPlanResponse.from(saved);
 
@@ -133,66 +145,150 @@ public class DailyPlanService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // PlanItem 저장 (기존 로직 유지)
+    // 식단 스타일별 메뉴 조회
     // ─────────────────────────────────────────────────────────────────────
 
-    @SuppressWarnings("unchecked")
-    private void savePlanItems(DailyPlan dailyPlan,
-            Map<String, Object> mealPlan,
-            Map<String, Object> workoutPlan,
-            LocalDate date) {
+    private List<Food> buildMenuForUser(UserProfile profile) {
+        String tag = switch (profile.getDietStyle()) {
+            case LOW_CALORIE -> "저칼로리";
+            case LOW_CARB_HIGH_PROTEIN -> "고단백";
+            default -> "";
+        };
+
+        if (tag.isBlank())
+            return foodRepository.findAll();
+
+        List<Food> tagged = foodRepository.findAllByTagsContaining(tag);
+        List<Food> general = foodRepository.findAll().stream()
+                .filter(f -> !tagged.contains(f))
+                .limit(20)
+                .toList();
+
+        List<Food> combined = new ArrayList<>(tagged);
+        combined.addAll(general);
+        return combined;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // DB 기반 식단 PlanItem 생성
+    // ─────────────────────────────────────────────────────────────────────
+
+    private List<PlanItem> generateMealItems(
+            UserProfile profile,
+            DailyPlan dailyPlan,
+            LocalDate date,
+            int calorieTarget,
+            List<Food> availableFoods) {
+
+        if (availableFoods.isEmpty()) {
+            log.warn("[DailyPlan] foods 테이블 비어있음 → 식단 생략");
+            return List.of();
+        }
+
+        String prompt = promptBuilder.buildMealSelectionPrompt(profile, availableFoods, calorieTarget);
+        String rawResponse = geminiClient.call(getMealSystemInstruction(), prompt);
+        String planJson = responseParser.extractText(rawResponse);
+
+        List<GeminiResponseParser.SelectedMealDto> selected = responseParser.parseMealSelection(planJson);
+
+        if (selected.isEmpty()) {
+            log.warn("[DailyPlan] AI 식단 선택 실패 → fallback 사용");
+            return buildFallbackMealItems(availableFoods, dailyPlan, date);
+        }
+
+        Map<Long, Food> foodMap = foodRepository
+                .findByIdIn(selected.stream()
+                        .map(GeminiResponseParser.SelectedMealDto::foodId).toList())
+                .stream()
+                .collect(Collectors.toMap(Food::getId, f -> f));
+
+        return selected.stream().map(s -> {
+            Food food = foodMap.get(s.foodId());
+            if (food == null) {
+                log.warn("[DailyPlan] AI가 선택한 foodId={} DB에 없음 → 스킵", s.foodId());
+                return null;
+            }
+            PlanItemCategory category = switch (s.mealType()) {
+                case "BREAKFAST" -> PlanItemCategory.BREAKFAST;
+                case "LUNCH" -> PlanItemCategory.LUNCH;
+                case "DINNER" -> PlanItemCategory.DINNER;
+                default -> PlanItemCategory.SNACK;
+            };
+            return PlanItem.builder()
+                    .dailyPlan(dailyPlan)
+                    .date(date)
+                    .type(PlanItemType.MEAL)
+                    .category(category)
+                    .foodName(food.getName())
+                    .calories(food.getCalories()) // DB 확정값
+                    .protein(food.getProtein()) // DB 확정값
+                    .fat(food.getFat()) // DB 확정값
+                    .carbs(food.getCarbs()) // DB 확정값
+                    .status(PlanItemStatus.PENDING)
+                    .build();
+        }).filter(Objects::nonNull).toList();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Fallback 식단
+    // ─────────────────────────────────────────────────────────────────────
+
+    private List<PlanItem> buildFallbackMealItems(
+            List<Food> foods, DailyPlan dailyPlan, LocalDate date) {
+
         List<PlanItem> items = new ArrayList<>();
-
-        if (mealPlan != null) {
-            Object mealsObj = mealPlan.get("meals");
-            if (mealsObj instanceof List<?> meals) {
-                for (Object obj : meals) {
-                    if (!(obj instanceof Map))
-                        continue;
-                    Map<String, Object> meal = (Map<String, Object>) obj;
-                    items.add(PlanItem.builder()
-                            .dailyPlan(dailyPlan)
-                            .date(date)
-                            .type(PlanItemType.MEAL)
-                            .category(parseMealCategory(String.valueOf(meal.getOrDefault("type", "SNACK"))))
-                            .foodName(String.valueOf(meal.getOrDefault("name", "식사")))
-                            .calories(toInt(meal.get("kcal"), 0))
-                            .protein(toInt(meal.get("protein"), 0))
-                            .carbs(toInt(meal.get("carbs"), 0))
-                            .fat(toInt(meal.get("fat"), 0))
+        for (PlanItemCategory cat : List.of(
+                PlanItemCategory.BREAKFAST, PlanItemCategory.LUNCH, PlanItemCategory.DINNER)) {
+            foods.stream().filter(f -> f.getCategory() == cat).findFirst()
+                    .ifPresent(food -> items.add(PlanItem.builder()
+                            .dailyPlan(dailyPlan).date(date)
+                            .type(PlanItemType.MEAL).category(cat)
+                            .foodName(food.getName())
+                            .calories(food.getCalories())
+                            .protein(food.getProtein())
+                            .fat(food.getFat())
+                            .carbs(food.getCarbs())
                             .status(PlanItemStatus.PENDING)
-                            .build());
-                }
-            }
+                            .build()));
         }
+        return items;
+    }
 
-        if (workoutPlan != null) {
-            Object workoutsObj = workoutPlan.get("workouts");
-            if (workoutsObj instanceof List<?> workouts) {
-                for (Object obj : workouts) {
-                    if (!(obj instanceof Map))
-                        continue;
-                    Map<String, Object> workout = (Map<String, Object>) obj;
-                    items.add(PlanItem.builder()
-                            .dailyPlan(dailyPlan)
-                            .date(date)
-                            .type(PlanItemType.WORKOUT)
-                            .category(parseWorkoutCategory(String.valueOf(workout.getOrDefault("category", "CARDIO"))))
-                            .exerciseName(String.valueOf(workout.getOrDefault("name", "운동")))
-                            .calories(toInt(workout.get("kcal_burn"), 0))
-                            .sets(toInt(workout.get("sets"), 0))
-                            .reps(toInt(workout.get("reps"), 0))
-                            .durationMin(toInt(workout.get("duration_min"), 0))
-                            .status(PlanItemStatus.PENDING)
-                            .build());
-                }
-            }
-        }
+    // ─────────────────────────────────────────────────────────────────────
+    // mealPlan JSON 구성
+    // ─────────────────────────────────────────────────────────────────────
 
-        if (!items.isEmpty()) {
-            planItemRepository.saveAll(items);
-            log.info("[PlanItem] {} items saved - planId={}", items.size(), dailyPlan.getId());
-        }
+    private Map<String, Object> buildMealPlanJson(List<PlanItem> mealItems) {
+        List<Map<String, Object>> meals = mealItems.stream()
+                .map(item -> Map.<String, Object>of(
+                        "type", item.getCategory().name(),
+                        "name", item.getFoodName(),
+                        "kcal", item.getCalories(),
+                        "protein", item.getProtein(),
+                        "carbs", item.getCarbs(),
+                        "fat", item.getFat()))
+                .toList();
+        int totalKcal = mealItems.stream().mapToInt(PlanItem::getCalories).sum();
+        return Map.of("meals", meals, "total_kcal", totalKcal);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // 식단 AI System Instruction
+    // ─────────────────────────────────────────────────────────────────────
+
+    private String getMealSystemInstruction() {
+        return """
+                Role: Nutritionist AI for FitRoute.
+                Output: JSON ONLY. No markdown, no explanation.
+                Task: Select food IDs to compose 3 meals within the calorie target.
+                Schema: {"meals":[{"id":int,"meal_type":"BREAKFAST|LUNCH|DINNER"}]}
+
+                Critical Rules:
+                - 총 선택 음식 수: 6~9개 (끼니당 1~4개)
+                - 각 끼니 칼로리 합이 지정된 목표 ±100 이내 — 이 규칙이 가장 중요
+                - 전체 칼로리 절대 초과 금지
+                - "생것", "말린것", "살코기", "분말" 포함 음식 선택 금지
+                """;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -220,12 +316,9 @@ public class DailyPlanService {
                 : PlanItemStatus.COMPLETED;
 
         PlanItem item = PlanItem.builder()
-                .dailyPlan(dailyPlan)
-                .date(today)
-                .type(req.getType())
-                .category(req.getCategory())
-                .calories(req.getCalories())
-                .status(itemStatus)
+                .dailyPlan(dailyPlan).date(today)
+                .type(req.getType()).category(req.getCategory())
+                .calories(req.getCalories()).status(itemStatus)
                 .build();
 
         if (req.getType() == PlanItemType.MEAL) {
@@ -242,20 +335,19 @@ public class DailyPlanService {
         }
 
         PlanItem saved = planItemRepository.save(item);
-
-        // 직접 추가한 아이템도 Log에 반영
         if (itemStatus != PlanItemStatus.PENDING) {
             logService.upsertFromPlanItem(saved);
         }
-
         return PlanItemResponse.from(saved);
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 주간 운동 계획 조회 (기존 로직 유지)
+    // 주간 운동 계획 조회
     // ─────────────────────────────────────────────────────────────────────
 
-    public List<WeeklyWorkoutPlanResponse> getWeeklyWorkoutPlan(Long userId, LocalDate startDate) {
+    public List<WeeklyWorkoutPlanResponse> getWeeklyWorkoutPlan(
+            Long userId, LocalDate startDate) {
+
         LocalDate endDate = startDate.plusDays(6);
         List<DailyPlan> dailyPlans = dailyPlanRepository
                 .findByUserIdAndPlanDateBetween(userId, startDate, endDate);
@@ -265,8 +357,8 @@ public class DailyPlanService {
 
         List<WeeklyWorkoutPlanResponse> weeklyPlans = new ArrayList<>();
         for (DailyPlan plan : dailyPlans) {
-            List<PlanItem> workoutItems = planItemRepository
-                    .findByPlanIdAndDateAndType(plan.getId(), plan.getPlanDate(), PlanItemType.WORKOUT);
+            List<PlanItem> workoutItems = planItemRepository.findByPlanIdAndDateAndType(
+                    plan.getId(), plan.getPlanDate(), PlanItemType.WORKOUT);
 
             Map<PlanItemCategory, List<PlanItem>> grouped = workoutItems.stream()
                     .collect(Collectors.groupingBy(PlanItem::getCategory));
@@ -305,36 +397,8 @@ public class DailyPlanService {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 헬퍼
+    // Helpers
     // ─────────────────────────────────────────────────────────────────────
-
-    private PlanItemCategory parseMealCategory(String type) {
-        return switch (type.toUpperCase()) {
-            case "BREAKFAST" -> PlanItemCategory.BREAKFAST;
-            case "LUNCH" -> PlanItemCategory.LUNCH;
-            case "DINNER" -> PlanItemCategory.DINNER;
-            default -> PlanItemCategory.SNACK;
-        };
-    }
-
-    private PlanItemCategory parseWorkoutCategory(String name) {
-        if (name == null)
-            return PlanItemCategory.CHEST;
-        String lower = name.toLowerCase();
-        if (lower.contains("hiit") || lower.contains("러닝") || lower.contains("cardio"))
-            return PlanItemCategory.CARDIO;
-        if (lower.contains("코어") || lower.contains("core"))
-            return PlanItemCategory.CORE;
-        if (lower.contains("하체") || lower.contains("leg"))
-            return PlanItemCategory.LEGS;
-        if (lower.contains("등") || lower.contains("back"))
-            return PlanItemCategory.BACK;
-        if (lower.contains("어깨") || lower.contains("shoulder"))
-            return PlanItemCategory.SHOULDERS;
-        if (lower.contains("팔") || lower.contains("arm"))
-            return PlanItemCategory.ARMS;
-        return PlanItemCategory.CHEST;
-    }
 
     private String getCategoryName(PlanItemCategory category) {
         return switch (category) {
@@ -382,16 +446,22 @@ public class DailyPlanService {
     private int calculateCalorieTarget(UserProfile profile) {
         if (profile.getWeight() == null || profile.getHeight() == null)
             return 1500;
+
         int age = 30;
-        if (profile.getBirthDate() != null)
+        if (profile.getBirthDate() != null) {
             age = LocalDate.now().getYear() - profile.getBirthDate().getYear();
+        }
+
         double bmr = ("MALE".equals(profile.getGender().name()))
                 ? 10 * profile.getWeight() + 6.25 * profile.getHeight() - 5 * age + 5
                 : 10 * profile.getWeight() + 6.25 * profile.getHeight() - 5 * age - 161;
+
         double activity = profile.getActivityLevel() != null
                 ? profile.getActivityLevel().getMultiplier()
                 : 1.375;
+
         double tdee = bmr * activity;
+
         double adjust = profile.getGoalType() != null
                 ? switch (profile.getGoalType().name()) {
                     case "WEIGHT_LOSS" -> 0.8;
@@ -399,6 +469,7 @@ public class DailyPlanService {
                     default -> 1.0;
                 }
                 : 0.8;
+
         return (int) Math.round(tdee * adjust);
     }
 }

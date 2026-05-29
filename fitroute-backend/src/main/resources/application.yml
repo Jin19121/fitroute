@@ -23,7 +23,7 @@ spring:
 
   sql:
     init:
-      mode: never
+      mode: always
 
   data:
     redis:

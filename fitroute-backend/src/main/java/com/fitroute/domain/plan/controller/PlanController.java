@@ -20,11 +20,12 @@ public class PlanController {
         return ResponseEntity.ok(planService.getPlanStatus(userId));
     }
 
-    @PostMapping("/generate")
-    public ResponseEntity<Void> generatePlan(@AuthenticationPrincipal Long userId) {
-        planService.triggerGeneration(userId);
-        return ResponseEntity.accepted().build();
-    }
+    // @PostMapping("/generate")
+    // public ResponseEntity<Void> generatePlan(@AuthenticationPrincipal Long
+    // userId) {
+    // planService.triggerGeneration(userId);
+    // return ResponseEntity.accepted().build();
+    // }
 
     // // 오늘 플랜 상세 (기존 기능 유지)
     // @GetMapping("/today")

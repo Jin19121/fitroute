@@ -18,26 +18,25 @@ public class GeminiPromptBuilder {
    */
   public String getPlanSystemInstruction() {
     return """
-        Role: Expert Personal Trainer & Nutritionist (FitRoute AI).
+        Role: Expert Personal Trainer (FitRoute AI).
         Output: JSON ONLY. No markdown, no conversational text.
+        Language: 모든 운동 이름은 반드시 한국어로 작성할 것. (예: 벤치프레스, 스쿼트, 플랭크)
 
         Schema:
         {
           "s": {"c": int, "p": int, "cb": int, "f": int},
           "i": [
-            {"d": "YYYY-MM-DD", "t": "M", "c": "B|L|D|S", "n": str, "cal": int, "p": int, "cb": int, "f": int},
             {"d": "YYYY-MM-DD", "t": "W", "c": "C|B|L|S|A|CR|CA|R", "n": str, "cal": int, "s": int, "r": int, "w": int}
           ]
         }
 
         Rules:
-        - Generate for 7 days from start date.
-        - Daily calories sum must be target calories (±100).
-        - Meals: B(Breakfast), L(Lunch), D(Dinner) required. S(Snack) optional.
-        - Workouts: 4-10 items per day. Use category codes: C(Chest), B(Back), L(Leg), S(Shoulder), A(Arm), CR(Core), CA(Cardio), R(Rest).
-        - For rest day: c="R", n="Rest", all values 0.
+        - Generate workout for 7 days from start date.
+        - Workouts: 3-5 items per day. Use category codes: C(Chest), B(Back), L(Leg), S(Shoulder), A(Arm), CR(Core), CA(Cardio), R(Rest).
+        - For rest day: c="R", n="휴식", all values 0.
         - Provide integers only for all numeric values.
         - Follow the exercise experience level strictly.
+        - 운동 이름(n 필드)은 반드시 한국어로 작성.
         """;
   }
 
@@ -54,7 +53,8 @@ public class GeminiPromptBuilder {
         u={gender:%s, height:%d, weight:%.1f, target_weight:%.1f, period:%d, goal:%s, activity:%s, experience:%s}
         target_calories=%d
         start_date=%s
-        Generate workout plan only. No meal data.
+        운동 계획만 생성. 식단 데이터 불필요.
+        모든 운동명은 한국어로 작성할 것.
         """
         .formatted(
             mapGender(profile.getGender()),
@@ -64,8 +64,8 @@ public class GeminiPromptBuilder {
             profile.getTargetPeriod(),
             mapGoal(profile.getGoalType()),
             mapActivity(profile.getActivityLevel()),
-                mapExperience(profile.getExerciseExperience()),
-            cal,
+            mapExperience(profile.getExerciseExperience()),
+                cal,
             start);
   }
 
@@ -74,11 +74,8 @@ public class GeminiPromptBuilder {
    * (AI가 DB 메뉴판에서 음식 ID만 선택)
    */
   public String buildMealSelectionPrompt(
-      UserProfile profile,
-      List<Food> foods,
-      int calorieTarget) {
+      UserProfile profile, List<Food> foods, int calorieTarget) {
 
-    // 메뉴판 직렬화 — 최소 토큰 최적화
     String menu = foods.stream()
         .map(f -> String.format(
             "{\"id\":%d,\"n\":\"%s\",\"cal\":%d,\"c\":\"%s\",\"tag\":\"%s\"}",
@@ -89,30 +86,39 @@ public class GeminiPromptBuilder {
             f.getTags()))
         .collect(Collectors.joining(","));
 
+    // 끼니별 칼로리 배분 계산
+    int breakfastTarget = (int) (calorieTarget * 0.3); // 30%
+    int lunchTarget = (int) (calorieTarget * 0.4); // 40%
+    int dinnerTarget = (int) (calorieTarget * 0.3); // 30%
+
     return """
         Available foods: [%s]
-        Target calories: %d
+
+        오늘 하루 목표 칼로리: %d kcal
+        - 아침 목표: %d kcal (±100)
+        - 점심 목표: %d kcal (±100)
+        - 저녁 목표: %d kcal (±100)
+
         Diet style: %s, Goal: %s
 
-        Select food IDs for today's 3 meals.
-
         Return JSON only:
-        {"meals":[
-          {"id":foodId,"meal_type":"BREAKFAST"},
-          {"id":foodId,"meal_type":"LUNCH"},
-          {"id":foodId,"meal_type":"DINNER"}
-        ]}
+        {"meals":[{"id":foodId,"meal_type":"BREAKFAST|LUNCH|DINNER"}]}
 
         Rules:
-        - BREAKFAST + LUNCH + DINNER 각 1개씩 필수
-        - 총 칼로리가 target ±150 이내
-        - diet style 태그와 일치하는 음식 우선 선택
-        """
-        .formatted(
-            menu,
-            calorieTarget,
-            mapDiet(profile.getDietStyle()),
-            mapGoal(profile.getGoalType()));
+        - 아침/점심/저녁 각각 2~3개 음식 조합. 총 6~9개 이내.
+        - 각 끼니의 칼로리 합이 해당 목표 ±100 이내가 되도록 엄격히 조합할 것
+        - 전체 총 칼로리는 반드시 %d kcal ±150 이내
+        - 한 끼 구성: 밥류 1개 + 단백질 또는 채소 1~2개
+        - "생것", "말린것", "살코기", "분말", "원액" 포함 음식 선택 금지
+        """.formatted(
+        menu,
+        calorieTarget,
+        breakfastTarget,
+        lunchTarget,
+        dinnerTarget,
+        mapDiet(profile.getDietStyle()),
+        mapGoal(profile.getGoalType()),
+        calorieTarget);
   }
 
   private int calculateTargetCalories(UserProfile profile) {
