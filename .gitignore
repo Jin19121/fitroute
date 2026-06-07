@@ -3,6 +3,7 @@ fitroute-backend/.gradle/
 fitroute-backend/build/
 fitroute-backend/out/
 fitroute-backend/.env
+fitroute-backend/*.log
 
 # ── Frontend ─────────────────────────────
 fitroute-frontend/node_modules/
