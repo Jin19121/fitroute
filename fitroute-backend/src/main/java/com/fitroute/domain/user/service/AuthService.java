@@ -32,28 +32,20 @@ public class AuthService {
     private final JwtProvider jwtProvider;
     private final RedisTemplate<String, String> redisTemplate;
 
-    /**
-     * 회원가입: User + UserProfile 저장 후 토큰 반환.
-     * 개선 완료: 전체 조회를 제거하고 이메일 해시값을 인덱스로 활용해 중복 여부를 빠르게 확인
-     */
     @Transactional
     public SignupResponse signup(SignupRequest req) {
         String plainEmail = req.getEmail().toLowerCase().trim();
-
-        // 이메일 단방향 해싱 처리
         String emailHash = aes256Util.hash(plainEmail);
 
-        // O(1) 수준의 존재 여부 확인으로 최적화
         if (userRepository.existsByEmailHash(emailHash)) {
             throw new IllegalArgumentException(ErrorCode.DUPLICATE_EMAIL.getMessage());
         }
 
-        // 마스킹/복호화에 필요한 기존 양방향 암호문 생성
         String encryptedEmail = aes256Util.encrypt(plainEmail);
 
         User user = userRepository.save(User.builder()
                 .encryptedEmail(encryptedEmail)
-                .emailHash(emailHash) // 해시 필드 바인딩 추가
+                .emailHash(emailHash)
                 .password(passwordEncoder.encode(req.getPassword()))
                 .role(UserRole.USER)
                 .build());
@@ -84,19 +76,11 @@ public class AuthService {
         return new SignupResponse(accessToken, refreshToken);
     }
 
-    /**
-     * 로그인:
-     * 개선 완료: 전체 사용자 로드 후 루프 연산 방식을 폐기하고,
-     * 입력값의 해시 검증을 토대로 필요한 단 하나의 User 정보만 DB에서 직접 조회함
-     */
     @Transactional
     public TokenResponse login(LoginRequest req) {
         String plainEmail = req.getEmail().toLowerCase().trim();
-
-        // 검색용 해시값 생성
         String emailHash = aes256Util.hash(plainEmail);
 
-        // O(1) 해시 매핑 쿼리 실행
         User user = userRepository.findByEmailHash(emailHash)
                 .orElseThrow(() -> new IllegalArgumentException(ErrorCode.USER_NOT_FOUND.getMessage()));
 
@@ -140,8 +124,27 @@ public class AuthService {
         return new TokenResponse(newAccessToken, newRefreshToken);
     }
 
+    /**
+     * 로그아웃
+     * 1. Refresh Token 삭제 — 재발급 차단
+     * 2. Access Token 블랙리스트 등록 — 만료 전 재사용 차단
+     * accessToken이 null인 경우(헤더 누락 등)는 Refresh Token만 삭제하고 정상 처리
+     */
     @Transactional
-    public void logout(Long userId) {
+    public void logout(Long userId, String accessToken) {
+        // 1. Refresh Token 삭제
         redisTemplate.delete(REFRESH_TOKEN_PREFIX + userId);
+
+        // 2. Access Token 블랙리스트 등록
+        if (accessToken != null) {
+            long remainingMs = jwtProvider.getRemainingMs(accessToken);
+            if (remainingMs > 0) {
+                redisTemplate.opsForValue().set(
+                        "BL:" + accessToken,
+                        "logout",
+                        remainingMs,
+                        TimeUnit.MILLISECONDS);
+            }
+        }
     }
 }
