@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import PhoneFrame from '../../components/layout/PhoneFrame';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
-import { StepIndicator } from '../../components/common/chips.jsx';
+import { StepIndicator } from '../../components/common/Chips.jsx';
 import useAuth from '../../hooks/useAuth';
 import {
     validateEmail,
