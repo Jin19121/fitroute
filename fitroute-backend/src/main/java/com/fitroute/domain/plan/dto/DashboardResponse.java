@@ -1,16 +1,22 @@
-// DashboardResponse.java
+// domain/plan/dto/DashboardResponse.java
 package com.fitroute.domain.plan.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fitroute.domain.plan.entity.PlanItem;
 import com.fitroute.global.enums.PlanItemStatus;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.List;
 
 @Getter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class DashboardResponse {
 
     private String planStatus;
@@ -35,6 +41,9 @@ public class DashboardResponse {
     // ──────────────────────────────────────────
     @Getter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class TodayData {
         private LocalDate date;
         private int consumedCalories;
@@ -49,19 +58,20 @@ public class DashboardResponse {
     // ──────────────────────────────────────────
     @Getter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MealItemDto {
 
         private Long id;
         private String category;
 
-        // 원본
         private String foodName;
         private int calories;
         private int protein;
         private int carbs;
         private int fat;
 
-        // 실제 표시 (수정 시 반영)
         private String effectiveName;
         private int effectiveCalories;
         private boolean isModified;
@@ -90,18 +100,19 @@ public class DashboardResponse {
     // ──────────────────────────────────────────
     @Getter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class WorkoutItemDto {
 
         private Long id;
         private String category;
 
-        // 원본
         private String exerciseName;
         private int calories;
         private Integer sets;
         private Integer reps;
 
-        // 실제 표시 (수정 시 반영)
         private String effectiveName;
         private int effectiveCalories;
         private boolean isModified;

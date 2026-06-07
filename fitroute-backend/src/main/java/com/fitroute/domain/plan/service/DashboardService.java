@@ -1,6 +1,7 @@
 // domain/plan/service/DashboardService.java
 package com.fitroute.domain.plan.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fitroute.domain.log.entity.Log;
 import com.fitroute.domain.log.repository.LogRepository;
 import com.fitroute.domain.log.service.LogService;
@@ -14,8 +15,11 @@ import com.fitroute.domain.user.entity.UserProfile;
 import com.fitroute.domain.user.repository.UserProfileRepository;
 import com.fitroute.global.enums.PlanItemStatus;
 import com.fitroute.global.enums.PlanItemType;
+import com.fitroute.global.event.DashboardCacheEvictEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +27,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,20 +42,111 @@ public class DashboardService {
         private final LogRepository logRepository;
         private final LogService logService;
 
+        // ─── Redis Cache-Aside ────────────────────────────────────────────────
+        private final RedisTemplate<String, String> redisTemplate;
+        private final ObjectMapper objectMapper;
+        private final ApplicationEventPublisher eventPublisher;
+
+        private static final String CACHE_KEY_PREFIX = "today:";
+        private static final long CACHE_TTL_MINUTES = 15;
+
         // ─────────────────────────────────────────────────────────────────────
-        // 대시보드 조회
+        // 대시보드 조회 — Cache-Aside 패턴
         // ─────────────────────────────────────────────────────────────────────
 
         public DashboardResponse getDashboard(Long userId) {
+                String cacheKey = CACHE_KEY_PREFIX + userId;
+
+                // 1. Redis 캐시 조회
+                try {
+                        String cachedJson = redisTemplate.opsForValue().get(cacheKey);
+                        if (cachedJson != null) {
+                                log.info("[DashboardCache] Cache Hit - key={}", cacheKey);
+                                return objectMapper.readValue(cachedJson, DashboardResponse.class);
+                        }
+                } catch (Exception e) {
+                        // Redis 장애 시 DB Fallback — 서비스 중단 방지
+                        log.error("[DashboardCache] Redis 조회 실패, DB Fallback 진행 - error={}", e.getMessage());
+                }
+
+                // 2. Cache Miss → DB 조회
+                log.info("[DashboardCache] Cache Miss - key={}, DB 조회 시작", cacheKey);
+                DashboardResponse response = fetchFromDb(userId);
+
+                // 3. 조회 결과 Redis 캐싱 (TTL 15분)
+                try {
+                        String json = objectMapper.writeValueAsString(response);
+                        redisTemplate.opsForValue().set(cacheKey, json, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+                        log.info("[DashboardCache] 캐시 저장 완료 - key={}", cacheKey);
+                } catch (Exception e) {
+                        // Redis 저장 실패해도 응답은 정상 반환
+                        log.error("[DashboardCache] Redis 저장 실패 - error={}", e.getMessage());
+                }
+
+                return response;
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // PlanItem 액션 적용 + 캐시 무효화 이벤트 발행
+        // ─────────────────────────────────────────────────────────────────────
+
+        @Transactional
+        public void applyItemAction(Long itemId, Long userId, PlanItemActionRequest req) {
+                req.validateModifiedFields();
+
+                PlanItem item = planItemRepository.findById(itemId)
+                                .orElseThrow(() -> new IllegalArgumentException(
+                                                "PlanItem not found: id=" + itemId));
+
+                if (!item.getDailyPlan().getUserId().equals(userId)) {
+                        throw new SecurityException("Access denied to planItem: id=" + itemId);
+                }
+
+                switch (req.getAction()) {
+                        case COMPLETE -> item.complete();
+                        case SKIP -> item.skip();
+                        case MODIFY -> item.modify(
+                                        req.getModifiedName(),
+                                        req.getModifiedCalories(),
+                                        req.getModifiedProtein(),
+                                        req.getModifiedCarbs(),
+                                        req.getModifiedFat(),
+                                        req.getModifiedSets(),
+                                        req.getModifiedReps());
+                        case COMPLETE_WITH_MODIFY -> {
+                                item.modify(
+                                                req.getModifiedName(),
+                                                req.getModifiedCalories(),
+                                                req.getModifiedProtein(),
+                                                req.getModifiedCarbs(),
+                                                req.getModifiedFat(),
+                                                req.getModifiedSets(),
+                                                req.getModifiedReps());
+                                item.complete();
+                        }
+                        case RESET -> item.resetToPending();
+                        default -> throw new IllegalArgumentException(
+                                        "지원하지 않는 action: " + req.getAction());
+                }
+
+                logService.upsertFromPlanItem(item);
+
+                // DB 커밋 완료 후 캐시 무효화 (Race Condition 방지)
+                eventPublisher.publishEvent(new DashboardCacheEvictEvent(userId));
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // DB 조회 (Cache Miss 시 호출)
+        // ─────────────────────────────────────────────────────────────────────
+
+        private DashboardResponse fetchFromDb(Long userId) {
                 LocalDate today = LocalDate.now();
 
-                // 1. ACTIVE 플랜 조회
                 DailyPlan plan = dailyPlanRepository
                                 .findByUserIdAndPlanDateAndStatus(userId, today, DailyPlan.PlanStatus.ACTIVE)
                                 .orElse(null);
 
                 if (plan == null) {
-                        // ACTIVE 없음 → 최신 버전으로 상태만 반환
                         return dailyPlanRepository
                                         .findTopByUserIdAndPlanDateOrderByVersionDesc(userId, today)
                                         .map(p -> DashboardResponse.builder()
@@ -60,12 +156,10 @@ public class DashboardService {
                                         .orElseGet(() -> DashboardResponse.builder().planStatus("NO_PLAN").build());
                 }
 
-                // 2. 프로필
                 UserProfile profile = userProfileRepository.findByUserId(userId)
                                 .orElseThrow(() -> new IllegalStateException(
                                                 "UserProfile not found: userId=" + userId));
 
-                // 3. 오늘 PlanItem 조회 (상세 목록 표시용)
                 List<PlanItem> todayItems = planItemRepository.findByPlanIdAndDate(plan.getId(), today);
 
                 List<PlanItem> meals = todayItems.stream()
@@ -75,19 +169,15 @@ public class DashboardService {
                                 .filter(i -> i.getType() == PlanItemType.WORKOUT)
                                 .collect(Collectors.toList());
 
-                // 4. ★ 칼로리 집계: Log 우선 → PlanItem 폴백
                 int consumedCalories;
                 int burnedCalories;
 
                 Optional<Log> todayLog = logRepository.findByUserIdAndLogDate(userId, today);
                 if (todayLog.isPresent()) {
-                        // Log 기반 집계 (정확한 값)
                         consumedCalories = todayLog.get().getConsumedCalories();
                         burnedCalories = todayLog.get().getBurnedCalories();
-                        log.debug("[Dashboard] Using Log aggregation - consumed={}, burned={}",
-                                        consumedCalories, burnedCalories);
+                        log.debug("[Dashboard] Log 집계 사용 - consumed={}, burned={}", consumedCalories, burnedCalories);
                 } else {
-                        // Log 생성 전 최초 접속 케이스 → PlanItem 직접 집계
                         consumedCalories = meals.stream()
                                         .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED)
                                         .mapToInt(PlanItem::getEffectiveCalories)
@@ -96,14 +186,13 @@ public class DashboardService {
                                         .filter(i -> i.getStatus() == PlanItemStatus.COMPLETED)
                                         .mapToInt(PlanItem::getEffectiveCalories)
                                         .sum();
-                        log.debug("[Dashboard] Using PlanItem fallback - consumed={}, burned={}",
-                                        consumedCalories, burnedCalories);
+                        log.debug("[Dashboard] PlanItem Fallback 집계 - consumed={}, burned={}", consumedCalories,
+                                        burnedCalories);
                 }
 
                 int targetCalories = plan.getCalorieTarget() != null ? plan.getCalorieTarget() : 0;
                 int remainingCalories = Math.max(0, targetCalories - consumedCalories);
 
-                // 5. 주간 달성률
                 LocalDate weekStart = today.minusDays(today.getDayOfWeek().getValue() - 1);
                 long completedThisWeek = planItemRepository
                                 .countCompletedByPlanIdAndDateBetween(plan.getId(), weekStart, today);
@@ -113,7 +202,6 @@ public class DashboardService {
                                 ? (int) (completedThisWeek * 100 / activeThisWeek)
                                 : 0;
 
-                // 6. D-Day
                 long daysRemaining = 0;
                 if (profile.getTargetPeriod() != null) {
                         LocalDate endDate = plan.getPlanDate().plusWeeks(profile.getTargetPeriod());
@@ -149,62 +237,6 @@ public class DashboardService {
                                                                 .collect(Collectors.toList()))
                                                 .build())
                                 .build();
-        }
-
-        // ─────────────────────────────────────────────────────────────────────
-        // PlanItem 액션 적용
-        // ─────────────────────────────────────────────────────────────────────
-
-        /**
-         * PlanItem 상태 변경 + Log 동기화를 단일 트랜잭션으로 처리.
-         */
-        @Transactional
-        public void applyItemAction(Long itemId, Long userId, PlanItemActionRequest req) {
-                req.validateModifiedFields();
-
-                PlanItem item = planItemRepository.findById(itemId)
-                                .orElseThrow(() -> new IllegalArgumentException(
-                                                "PlanItem not found: id=" + itemId));
-
-                if (!item.getDailyPlan().getUserId().equals(userId)) {
-                        throw new SecurityException("Access denied to planItem: id=" + itemId);
-                }
-
-                // 비즈니스 로직: action 기반 상태 전환
-                switch (req.getAction()) {
-                        case COMPLETE -> item.complete();
-
-                        case SKIP -> item.skip();
-
-                        case MODIFY -> item.modify(
-                                        req.getModifiedName(),
-                                        req.getModifiedCalories(),
-                                        req.getModifiedProtein(),
-                                        req.getModifiedCarbs(),
-                                        req.getModifiedFat(),
-                                        req.getModifiedSets(),
-                                        req.getModifiedReps());
-
-                        case COMPLETE_WITH_MODIFY -> {
-                                item.modify(
-                                                req.getModifiedName(),
-                                                req.getModifiedCalories(),
-                                                req.getModifiedProtein(),
-                                                req.getModifiedCarbs(),
-                                                req.getModifiedFat(),
-                                                req.getModifiedSets(),
-                                                req.getModifiedReps());
-                                item.complete();
-                        }
-
-                        case RESET -> item.resetToPending();
-
-                        default -> throw new IllegalArgumentException(
-                                        "지원하지 않는 action: " + req.getAction());
-                }
-
-                // ★ PHASE 3: PlanItem 변경 후 Log에 반영 (같은 트랜잭션)
-                logService.upsertFromPlanItem(item);
         }
 
         private String extractUserName(UserProfile profile) {
