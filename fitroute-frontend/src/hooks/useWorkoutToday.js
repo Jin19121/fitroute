@@ -27,6 +27,7 @@ export function useWorkoutToday() {
         return () => document.removeEventListener("visibilitychange", onVisible);
     }, [fetchToday]);
 
+    const planStatus = todayData?.planStatus ?? null;
     const workouts = todayData?.today?.workouts ?? [];
 
     // 카테고리별로 그룹화
@@ -44,6 +45,7 @@ export function useWorkoutToday() {
         workouts,
         groupedByCategory,
         sortedCategories,
+        planStatus, 
         loading: !todayData,
         applyAction,
         reload: () => fetchToday(true),

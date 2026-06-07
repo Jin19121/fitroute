@@ -1,5 +1,6 @@
 // src/pages/dashboard/DashboardPage.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/axios";
 import PlanItemActionSheet from "../../components/PlanItemActionSheet";
 import BottomNav from '../../components/common/BottomNav';
@@ -12,8 +13,16 @@ const fetchDashboard = () =>
 const applyItemAction = (itemId, payload) =>
     apiClient.patch(`/api/plans/items/${itemId}/action`, payload);
 
+// ─── 페이지 껍데기 (BottomNav 항상 포함) ────────────────
+// 컴포넌트 외부에 정의해 리렌더 시 재생성 방지
+const DashboardShell = ({ children, bg = 'bg-[#f5f3f0]' }) => (
+    <div className={`flex flex-col h-full ${bg} relative`}>
+        {children}
+        <BottomNav />
+    </div>
+);
+
 // ─── 낙관적 업데이트 ────────────────────────────────
-// ─── 변경: action 기반으로 전면 교체 ─────────────────
 function applyOptimistic(prev, itemId, payload) {
     if (!prev?.today) return prev;
 
@@ -30,13 +39,10 @@ function applyOptimistic(prev, itemId, payload) {
                 case 'COMPLETE':
                     next.status = 'COMPLETED';
                     break;
-
                 case 'SKIP':
                     next.status = 'SKIPPED';
                     break;
-
                 case 'MODIFY':
-                    // status는 PENDING 유지
                     next.isModified = true;
                     if (modifiedName) next.effectiveName = modifiedName;
                     if (modifiedCalories) next.effectiveCalories = modifiedCalories;
@@ -44,7 +50,6 @@ function applyOptimistic(prev, itemId, payload) {
                     if (modifiedCarbs) next.carbs = modifiedCarbs;
                     if (modifiedFat) next.fat = modifiedFat;
                     break;
-
                 case 'COMPLETE_WITH_MODIFY':
                     next.status = 'COMPLETED';
                     next.isModified = true;
@@ -54,14 +59,12 @@ function applyOptimistic(prev, itemId, payload) {
                     if (modifiedCarbs) next.carbs = modifiedCarbs;
                     if (modifiedFat) next.fat = modifiedFat;
                     break;
-
                 case 'RESET':
                     next.status = 'PENDING';
                     next.isModified = false;
                     next.effectiveName = item.foodName ?? item.exerciseName;
                     next.effectiveCalories = item.calories;
                     break;
-
                 default:
                     break;
             }
@@ -71,7 +74,6 @@ function applyOptimistic(prev, itemId, payload) {
     const meals = patch(prev.today.meals);
     const workouts = patch(prev.today.workouts);
 
-    // ─── 변경: COMPLETED 단일 조건으로 집계 ─────────────
     const consumed = meals
         .filter((m) => m.status === 'COMPLETED')
         .reduce((s, m) => s + (m.effectiveCalories ?? m.calories), 0);
@@ -141,7 +143,6 @@ function useDashboard() {
         return () => window.removeEventListener('fitroute:plan-updated', onPlanUpdated);
     }, [load]);
 
-    // ─── 변경: action 기반 낙관적 업데이트 ───────────────
     const applyAction = useCallback(async (itemId, payload) => {
         setData((prev) => applyOptimistic(prev, itemId, payload));
         try {
@@ -174,12 +175,9 @@ const WO_COLOR = {
 };
 
 function ItemRow({ item, onTap }) {
-    // ─── 변경: done 판정 COMPLETED 단일 조건 ─────────────
     const done = item.status === 'COMPLETED';
     const skip = item.status === 'SKIPPED';
     const muted = done || skip;
-
-    // ─── 변경: MODIFIED 키 제거 ──────────────────────────
     const badge = STATUS_BADGE[item.status];
 
     return (
@@ -207,19 +205,16 @@ function ItemRow({ item, onTap }) {
                     ${muted ? 'line-through text-[#b8b4ae]' : 'text-[#1a1a1a]'}`}>
                     {item.effectiveName ?? item.foodName ?? item.exerciseName}
                 </div>
-                {/* ─── 변경: isModified 플래그로 수정 이력 표시 ── */}
-                {item.isModified && item.foodName &&
-                    item.effectiveName !== item.foodName && (
-                        <div className="text-[9px] text-[#1a9e75] mt-0.5">
-                            원본: {item.foodName} → {item.effectiveCalories} kcal
-                        </div>
-                    )}
-                {item.isModified && item.exerciseName &&
-                    item.effectiveName !== item.exerciseName && (
-                        <div className="text-[9px] text-[#1a9e75] mt-0.5">
-                            원본: {item.exerciseName} → {item.effectiveCalories} kcal
-                        </div>
-                    )}
+                {item.isModified && item.foodName && item.effectiveName !== item.foodName && (
+                    <div className="text-[9px] text-[#1a9e75] mt-0.5">
+                        원본: {item.foodName} → {item.effectiveCalories} kcal
+                    </div>
+                )}
+                {item.isModified && item.exerciseName && item.effectiveName !== item.exerciseName && (
+                    <div className="text-[9px] text-[#1a9e75] mt-0.5">
+                        원본: {item.exerciseName} → {item.effectiveCalories} kcal
+                    </div>
+                )}
             </div>
 
             {badge && (
@@ -227,7 +222,6 @@ function ItemRow({ item, onTap }) {
                     {badge.label}
                 </span>
             )}
-            {/* ─── 변경: isModified 뱃지 별도 표시 ────────────── */}
             {item.isModified && (
                 <span className="text-[9px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 bg-[#edfaf3] text-[#1a6b40]">
                     수정됨
@@ -262,7 +256,6 @@ function MealSection({ meals, onTap }) {
                     if (!items.length) return null;
                     const b = MEAL_BADGE[cat];
                     const done = items.every((i) => i.status !== 'PENDING');
-                    // ─── 변경: COMPLETED 단일 조건 집계 ─────────────
                     const totalKcal = items
                         .filter((i) => i.status === 'COMPLETED')
                         .reduce((s, i) => s + (i.effectiveCalories ?? i.calories), 0);
@@ -307,57 +300,112 @@ function WorkoutSection({ workouts, onTap }) {
     );
 }
 
+// ─── 플랜 없음 상태 UI ────────────────────────────────
+function NoPlanContent({ onGenerate }) {
+    return (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+            <div className="w-16 h-16 bg-[#eef3ff] rounded-2xl flex items-center justify-center text-3xl">
+                📋
+            </div>
+            <div className="text-center">
+                <div className="text-[17px] font-bold text-[#1a1a1a] mb-1">오늘의 플랜이 없어요</div>
+                <div className="text-[12px] text-[#8a8680] leading-relaxed">
+                    AI가 목표에 맞는 식단과 운동을<br />맞춤 생성해 드려요
+                </div>
+            </div>
+            <button
+                onClick={onGenerate}
+                className="mt-1 bg-[#4a7bff] text-white text-[13px] font-semibold px-7 py-3 rounded-2xl
+                           shadow-lg shadow-[#4a7bff]/30 active:scale-95 transition-transform"
+            >
+                ✨ AI 플랜 생성하기
+            </button>
+            <p className="text-[10px] text-[#b8b4ae]">약 10~20초 소요돼요</p>
+        </div>
+    );
+}
+
+// ─── 생성 중 상태 UI ─────────────────────────────────
+function GeneratingContent() {
+    return (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 gap-3">
+            <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M6 12Q6 4 12 4Q18 4 18 12Q18 19 12 19" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+                    <circle cx="12" cy="12" r="3" fill="#fff" />
+                </svg>
+            </div>
+            <p className="text-[16px] font-bold text-white">플랜 생성 중</p>
+            <p className="text-[12px] text-[#555]">잠시만 기다려 주세요...</p>
+            <div className="flex gap-1 mt-1">
+                {[0, 1, 2].map((i) => (
+                    <div
+                        key={i}
+                        className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce"
+                        style={{ animationDelay: `${i * 0.15}s` }}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ─── 메인 페이지 ──────────────────────────────────────
 export default function DashboardPage() {
     const { data, latestWeightKg, loading, error, applyAction } = useDashboard();
     const [activeItem, setActiveItem] = useState(null);
+    const navigate = useNavigate();
 
-    if (loading) return (
-        <div className="flex-1 flex items-center justify-center bg-[#1a1a1a] text-[#666] text-sm">
-            로딩 중...
-        </div>
-    );
+    // 플랜 생성 → AiLoadingPage 재활용 (이미 /api/plans/today/generate 호출 + 완료 시 /dashboard 이동)
+    const handleGeneratePlan = () => navigate('/onboarding/ai-loading');
 
-    if (error || !data) return (
-        <div className="flex-1 flex flex-col items-center justify-center bg-[#f5f3f0] gap-2 p-6">
-            <div className="text-[13px] font-medium text-[#1a1a1a]">오류가 발생했어요</div>
-            <div className="text-[11px] text-[#8a8680]">{error}</div>
-        </div>
-    );
+    // ── 로딩 ─────────────────────────────────────────
+    if (loading) {
+        return (
+            <DashboardShell>
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-[#4A7BFF] border-t-transparent rounded-full animate-spin" />
+                </div>
+            </DashboardShell>
+        );
+    }
 
+    // ── 오류 ─────────────────────────────────────────
+    if (error || !data) {
+        return (
+            <DashboardShell>
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 p-6">
+                    <div className="text-[13px] font-medium text-[#1a1a1a]">오류가 발생했어요</div>
+                    <div className="text-[11px] text-[#8a8680]">{error}</div>
+                </div>
+            </DashboardShell>
+        );
+    }
+
+    // ── 생성 중 ───────────────────────────────────────
     if (data.planStatus === 'GENERATING') {
         return (
-            <div className="flex-1 bg-[#1a1a1a] flex flex-col items-center justify-center p-6 gap-3">
-                <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M6 12Q6 4 12 4Q18 4 18 12Q18 19 12 19" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
-                        <circle cx="12" cy="12" r="3" fill="#fff" />
-                    </svg>
-                </div>
-                <p className="text-[16px] font-bold text-white">플랜 생성 중</p>
-                <p className="text-[12px] text-[#555]">잠시만 기다려 주세요...</p>
-            </div>
+            <DashboardShell bg="bg-[#1a1a1a]">
+                <GeneratingContent />
+            </DashboardShell>
         );
     }
 
+    // ── 플랜 없음 ─────────────────────────────────────
     if (data.planStatus === 'NO_PLAN' || !data.today) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center bg-[#f5f3f0] gap-3 p-6">
-                <div className="w-12 h-12 bg-[#eef3ff] rounded-2xl flex items-center justify-center text-2xl">📋</div>
-                <div className="text-[15px] font-bold text-[#1a1a1a]">플랜이 없어요</div>
-                <div className="text-[12px] text-[#8a8680] text-center">
-                    AI 플랜을 생성하면<br />오늘의 식단과 운동이 표시돼요
-                </div>
-                <button className="mt-2 bg-blue-500 text-white text-[12px] font-semibold px-5 py-2.5 rounded-xl">
-                    플랜 생성하기
-                </button>
-            </div>
+            <DashboardShell>
+                <NoPlanContent onGenerate={handleGeneratePlan} />
+            </DashboardShell>
         );
     }
 
+    // ── 정상 렌더 ────────────────────────────────────
     const { today } = data;
     const pct = data.targetCaloriesPerDay > 0
         ? Math.min(1, today.consumedCalories / data.targetCaloriesPerDay) : 0;
-    const r = 26, circ = 2 * Math.PI * r;
+    const r = 26;
+    const circ = 2 * Math.PI * r;
 
     const currentWeight = latestWeightKg ?? data.currentWeight;
     const weightToLose = currentWeight != null && data.goalWeight != null
@@ -450,7 +498,6 @@ export default function DashboardPage() {
                         },
                         {
                             label: '운동 달성',
-                            // ─── 변경: COMPLETED 단일 조건 ───────────────
                             value: `${today.workouts.filter((w) => w.status === 'COMPLETED').length} / ${today.workouts.filter((w) => w.status !== 'SKIPPED').length} 완료`,
                             pct: today.workouts.filter((w) => w.status !== 'SKIPPED').length > 0
                                 ? Math.round(

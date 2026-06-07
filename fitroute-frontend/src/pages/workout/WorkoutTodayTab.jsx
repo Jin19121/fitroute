@@ -1,59 +1,95 @@
 // src/pages/workout/WorkoutTodayTab.jsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useWorkoutToday } from "../../hooks/useWorkoutToday";
 import PlanItemActionSheet from "../../components/PlanItemActionSheet";
 import WorkoutAddSheet from "../../components/workout/WorkoutAddSheet";
 
 const WO_COLOR = {
-    CHEST: "#4a7bff",
-    BACK: "#ff8c42",
-    LEGS: "#1a6b40",
-    SHOULDERS: "#a855f7",
-    ARMS: "#f59e0b",
-    CORE: "#ef4444",
-    CARDIO: "#06b6d4",
-    REST: "#9ca3af",
+    CHEST: "#4a7bff", BACK: "#ff8c42", LEGS: "#1a6b40", SHOULDERS: "#a855f7",
+    ARMS: "#f59e0b", CORE: "#ef4444", CARDIO: "#06b6d4", REST: "#9ca3af",
 };
 
 const WO_BADGE = {
-    CHEST: "가슴",
-    BACK: "등",
-    LEGS: "다리",
-    SHOULDERS: "어깨",
-    ARMS: "팔",
-    CORE: "코어",
-    CARDIO: "유산소",
-    REST: "휴식",
+    CHEST: "가슴", BACK: "등", LEGS: "다리", SHOULDERS: "어깨",
+    ARMS: "팔", CORE: "코어", CARDIO: "유산소", REST: "휴식",
 };
 
-// ─── 변경: MODIFIED / EDITED 제거, isModified 플래그로 판단 ──────────────
 const STATUS_CONFIG = {
     COMPLETED: { color: "#2a5cc5", label: "완수", bg: "#eef3ff" },
     SKIPPED: { color: "#8a8680", label: "미실행", bg: "#f0ece5" },
 };
 
-// ── 단일 운동 아이템 ──────────────────────────────
+// ─── 플랜 없음 빈 화면 ────────────────────────────────────────────────────
+function NoPlanEmpty({ onGenerate, onAddManual }) {
+    return (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 gap-4">
+            <div className="text-4xl">🏋️</div>
+            <div className="text-center">
+                <div className="text-[14px] font-bold text-[#1a1a1a] mb-1">
+                    오늘 운동 계획이 없어요
+                </div>
+                <div className="text-[12px] text-[#8a8680] leading-relaxed text-center">
+                    AI가 부위별 맞춤 루틴을 생성하거나<br />직접 추가할 수 있어요
+                </div>
+            </div>
+            <div className="flex flex-col gap-2 w-full max-w-xs mt-1">
+                <button
+                    onClick={onGenerate}
+                    className="w-full bg-[#4a7bff] text-white text-[13px] font-semibold py-3 rounded-2xl
+                               shadow-lg shadow-[#4a7bff]/30 active:scale-95 transition-transform"
+                >
+                    ✨ AI 플랜 생성하기
+                </button>
+                <button
+                    onClick={onAddManual}
+                    className="w-full bg-white border border-[#edeae5] text-[#1a1a1a] text-[12px]
+                               font-medium py-2.5 rounded-2xl"
+                >
+                    + 직접 운동 추가하기
+                </button>
+            </div>
+            <p className="text-[10px] text-[#b8b4ae]">AI 생성은 약 10~20초 소요돼요</p>
+        </div>
+    );
+}
+
+// ─── 계획은 있는데 오늘 운동이 없는 빈 화면 ──────────────────────────────
+function NoWorkoutToday({ onAddManual }) {
+    return (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 gap-3">
+            <div className="text-4xl">😴</div>
+            <div className="text-[14px] font-bold text-[#1a1a1a]">오늘은 휴식일이에요</div>
+            <div className="text-[12px] text-[#8a8680] text-center">
+                계획에 오늘 운동이 없어요<br />직접 추가하거나 쉬어가세요
+            </div>
+            <button
+                onClick={onAddManual}
+                className="mt-2 bg-white border border-[#edeae5] text-[#1a1a1a] text-[12px]
+                           font-medium px-5 py-2.5 rounded-xl"
+            >
+                + 운동 추가하기
+            </button>
+        </div>
+    );
+}
+
+// ─── 단일 운동 아이템 ──────────────────────────────────────────────────────
 function WorkoutItem({ item, onTap }) {
     const [open, setOpen] = useState(false);
 
-    // ─── 변경: done 판정을 status === "COMPLETED" 단일 조건으로 단순화 ───
     const done = item.status === "COMPLETED";
     const skip = item.status === "SKIPPED";
     const muted = done || skip;
-
     const statusCfg = STATUS_CONFIG[item.status];
     const color = WO_COLOR[item.category] ?? "#9ca3af";
     const badge = WO_BADGE[item.category] ?? item.category;
     const displayName = item.effectiveName ?? item.exerciseName;
 
     return (
-        <div
-            className={`bg-white rounded-2xl overflow-hidden
-                ${item.isModified ? "border-l-2 border-[#1a9e75]" : ""}`}
-        >
-            {/* 헤더 행 */}
+        <div className={`bg-white rounded-2xl overflow-hidden
+            ${item.isModified ? "border-l-2 border-[#1a9e75]" : ""}`}>
             <div className="flex items-center gap-3 px-4 py-3">
-                {/* 체크박스 */}
                 <div
                     onClick={() => onTap(item)}
                     className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center cursor-pointer transition-all
@@ -64,18 +100,13 @@ function WorkoutItem({ item, onTap }) {
                             <path
                                 d="M1.5 4.5L3.8 7L7.5 2"
                                 stroke={done ? "#fff" : "#8a8680"}
-                                strokeWidth="1.4"
-                                strokeLinecap="round"
+                                strokeWidth="1.4" strokeLinecap="round"
                             />
                         </svg>
                     )}
                 </div>
 
-                {/* 운동 정보 */}
-                <div
-                    className="flex-1 min-w-0 cursor-pointer"
-                    onClick={() => setOpen((p) => !p)}
-                >
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setOpen((p) => !p)}>
                     <div className={`text-[12px] font-semibold truncate
                         ${muted ? "line-through text-[#b8b4ae]" : "text-[#1a1a1a]"}`}>
                         {displayName}
@@ -88,16 +119,11 @@ function WorkoutItem({ item, onTap }) {
                             {badge}
                         </span>
                         {item.sets > 0 && item.reps > 0 && (
-                            <span className="text-[10px] text-[#b8b4ae]">
-                                {item.sets}×{item.reps}
-                            </span>
+                            <span className="text-[10px] text-[#b8b4ae]">{item.sets}×{item.reps}</span>
                         )}
                         {item.durationMin > 0 && (
-                            <span className="text-[10px] text-[#b8b4ae]">
-                                {item.durationMin}분
-                            </span>
+                            <span className="text-[10px] text-[#b8b4ae]">{item.durationMin}분</span>
                         )}
-                        {/* ─── 변경: isModified 플래그로 수정 뱃지 표시 ─── */}
                         {item.isModified && (
                             <span className="text-[7px] font-semibold px-1.5 py-0.5 rounded-full bg-[#edfaf3] text-[#1a6b40]">
                                 수정됨
@@ -106,7 +132,6 @@ function WorkoutItem({ item, onTap }) {
                     </div>
                 </div>
 
-                {/* 우측 */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                     <span className={`text-[11px] font-semibold
                         ${muted ? "text-[#b8b4ae]" : "text-blue-500"}`}>
@@ -131,7 +156,6 @@ function WorkoutItem({ item, onTap }) {
                 </div>
             </div>
 
-            {/* 상세 펼침 */}
             {open && (
                 <div className="px-4 pb-3 border-t border-[#f0ece5]">
                     <div className="pt-3 flex flex-col gap-2">
@@ -140,22 +164,15 @@ function WorkoutItem({ item, onTap }) {
                                 {[
                                     { label: "세트", val: item.effectiveSets ?? item.sets },
                                     { label: "횟수", val: item.effectiveReps ?? item.reps },
-                                    ...(item.durationMin > 0
-                                        ? [{ label: "분", val: item.durationMin }]
-                                        : []),
+                                    ...(item.durationMin > 0 ? [{ label: "분", val: item.durationMin }] : []),
                                 ].map(({ label, val }) => (
-                                    <div
-                                        key={label}
-                                        className="flex-1 bg-[#f5f3f0] rounded-xl p-2 text-center"
-                                    >
+                                    <div key={label} className="flex-1 bg-[#f5f3f0] rounded-xl p-2 text-center">
                                         <div className="text-[14px] font-bold text-[#1a1a1a]">{val}</div>
                                         <div className="text-[9px] text-[#8a8680]">{label}</div>
                                     </div>
                                 ))}
                             </div>
                         )}
-
-                        {/* ─── 변경: isModified + 이름 변경 여부로 수정 이력 표시 ─── */}
                         {item.isModified && item.effectiveName !== item.exerciseName && (
                             <div className="text-[9px] text-[#1a9e75]">
                                 원본: {item.exerciseName} → {item.effectiveCalories}kcal
@@ -168,12 +185,10 @@ function WorkoutItem({ item, onTap }) {
     );
 }
 
-// ── 카테고리 그룹 ─────────────────────────────────
+// ─── 카테고리 그룹 ────────────────────────────────────────────────────────
 function CategoryGroup({ category, items, onTap }) {
     const color = WO_COLOR[category] ?? "#9ca3af";
     const badge = WO_BADGE[category] ?? category;
-
-    // ─── 변경: 완수 판정을 status === "COMPLETED" 단일 조건으로 단순화 ───
     const completed = items.filter((w) => w.status === "COMPLETED").length;
     const total = items.filter((w) => w.status !== "SKIPPED").length;
 
@@ -193,12 +208,15 @@ function CategoryGroup({ category, items, onTap }) {
     );
 }
 
-// ── 메인 컴포넌트 ─────────────────────────────────
+// ─── 메인 컴포넌트 ────────────────────────────────────────────────────────
 export default function WorkoutTodayTab() {
-    const { workouts, groupedByCategory, sortedCategories, loading, applyAction, reload } =
+    const { workouts, groupedByCategory, sortedCategories, planStatus, loading, applyAction, reload } =
         useWorkoutToday();
     const [activeItem, setActiveItem] = useState(null);
     const [showAddSheet, setShowAddSheet] = useState(false);
+    const navigate = useNavigate();
+
+    const handleGeneratePlan = () => navigate('/onboarding/ai-loading');
 
     if (loading) {
         return (
@@ -208,23 +226,14 @@ export default function WorkoutTodayTab() {
         );
     }
 
-    if (workouts.length === 0) {
+    // 플랜 자체가 없는 경우
+    if (planStatus === 'NO_PLAN' || (!workouts.length && !planStatus)) {
         return (
             <>
-                <div className="flex-1 flex flex-col items-center justify-center p-6 gap-3">
-                    <div className="text-4xl">🏋️</div>
-                    <div className="text-[14px] font-bold text-[#1a1a1a]">오늘 운동이 없어요</div>
-                    <div className="text-[12px] text-[#8a8680] text-center">
-                        계획 탭에서 AI 운동을 생성하거나<br />직접 추가해 보세요
-                    </div>
-                    <button
-                        onClick={() => setShowAddSheet(true)}
-                        className="mt-3 bg-blue-500 text-white text-[12px] font-semibold px-5 py-2.5 rounded-xl"
-                    >
-                        운동 추가하기
-                    </button>
-                </div>
-
+                <NoPlanEmpty
+                    onGenerate={handleGeneratePlan}
+                    onAddManual={() => setShowAddSheet(true)}
+                />
                 {showAddSheet && (
                     <WorkoutAddSheet
                         onClose={() => setShowAddSheet(false)}
@@ -235,7 +244,21 @@ export default function WorkoutTodayTab() {
         );
     }
 
-    // ─── 변경: 진행률 계산을 status === "COMPLETED" 단일 조건으로 단순화 ───
+    // 플랜은 있지만 오늘 운동 없음 (휴식일)
+    if (workouts.length === 0) {
+        return (
+            <>
+                <NoWorkoutToday onAddManual={() => setShowAddSheet(true)} />
+                {showAddSheet && (
+                    <WorkoutAddSheet
+                        onClose={() => setShowAddSheet(false)}
+                        onAdd={() => { setShowAddSheet(false); reload(); }}
+                    />
+                )}
+            </>
+        );
+    }
+
     const totalActive = workouts.filter((w) => w.status !== "SKIPPED").length;
     const totalDone = workouts.filter((w) => w.status === "COMPLETED").length;
     const pct = totalActive > 0 ? Math.round((totalDone / totalActive) * 100) : 0;
@@ -272,14 +295,12 @@ export default function WorkoutTodayTab() {
                 </div>
             </div>
 
-            {/* Action Sheet */}
             <PlanItemActionSheet
                 item={activeItem}
                 onClose={() => setActiveItem(null)}
                 onApply={applyAction}
             />
 
-            {/* Add Sheet */}
             {showAddSheet && (
                 <WorkoutAddSheet
                     onClose={() => setShowAddSheet(false)}
