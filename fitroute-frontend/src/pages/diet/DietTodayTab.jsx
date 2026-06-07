@@ -1,4 +1,8 @@
 // src/pages/diet/DietTodayTab.jsx
+// 기존 코드는 이미 todayData.today.consumedCalories를 쓰고 있음
+// planStore가 재계산하면 자동 반영됨 — 별도 수정 불필요
+// 단, useEffect 의존성 경고 억제를 위해 아래처럼 정리
+
 import { useEffect, useState } from 'react';
 import { usePlanStore } from '../../store/planStore';
 import MealSection from '../../components/diet/MealSection';
@@ -11,13 +15,18 @@ const MEAL_LABEL = {
 
 export default function DietTodayTab() {
     const [activeItem, setActiveItem] = useState(null);
-    const { todayData, loading, error, fetchToday, applyAction } = usePlanStore();
+    const todayData = usePlanStore((s) => s.todayData);
+    const loading = usePlanStore((s) => s.loading);
+    const error = usePlanStore((s) => s.error);
+    const fetchToday = usePlanStore((s) => s.fetchToday);
+    const applyAction = usePlanStore((s) => s.applyAction);
 
     useEffect(() => {
-        fetchToday(true); // ← force 재조회
+        fetchToday(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    if (loading) return (
+    if (loading && !todayData) return (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ fontSize: 12, color: '#8A8680' }}>로딩 중...</div>
         </div>
@@ -33,33 +42,49 @@ export default function DietTodayTab() {
     const meals = today.meals ?? [];
 
     const grouped = MEAL_TYPES.reduce((acc, type) => {
-        acc[type] = meals.filter(m => m.category === type);
+        acc[type] = meals.filter((m) => m.category === type);
         return acc;
     }, {});
 
-    const pct = todayData.targetCaloriesPerDay > 0
-        ? Math.min(1, today.consumedCalories / todayData.targetCaloriesPerDay) : 0;
+    const pct =
+        todayData.targetCaloriesPerDay > 0
+            ? Math.min(1, today.consumedCalories / todayData.targetCaloriesPerDay)
+            : 0;
 
     return (
         <>
-            <div style={{
-                flex: 1, overflowY: 'auto',
-                padding: '0 12px 80px',
-                display: 'flex', flexDirection: 'column', gap: 8,
-                background: '#F5F3F0',
-            }}>
-                {/* 칼로리 카드 */}
-                <div style={{
-                    background: '#4A7BFF', borderRadius: 14,
-                    padding: '11px 12px', marginTop: 8,
-                    display: 'flex', alignItems: 'center', gap: 10,
-                }}>
+            <div
+                style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '0 12px 80px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    background: '#F5F3F0',
+                }}
+            >
+                {/* 칼로리 카드 — consumedCalories는 store에서 재계산된 값 */}
+                <div
+                    style={{
+                        background: '#4A7BFF',
+                        borderRadius: 14,
+                        padding: '11px 12px',
+                        marginTop: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                    }}
+                >
                     <svg width="52" height="52" viewBox="0 0 52 52" style={{ flexShrink: 0 }}>
                         <circle cx="26" cy="26" r="21" fill="none" stroke="rgba(255,255,255,.25)" strokeWidth="5" />
-                        <circle cx="26" cy="26" r="21" fill="none" stroke="#fff" strokeWidth="5"
+                        <circle
+                            cx="26" cy="26" r="21"
+                            fill="none" stroke="#fff" strokeWidth="5"
                             strokeDasharray={`${132 * pct} ${132 * (1 - pct)}`}
-                            strokeLinecap="round" transform="rotate(-90 26 26)"
-                            style={{ transition: 'stroke-dasharray 0.6s ease' }}
+                            strokeLinecap="round"
+                            transform="rotate(-90 26 26)"
+                            style={{ transition: 'stroke-dasharray 0.4s ease' }}
                         />
                         <text x="26" y="30" textAnchor="middle" fontSize="10" fontWeight="700" fill="#fff">
                             {Math.round(pct * 100)}%
@@ -74,11 +99,17 @@ export default function DietTodayTab() {
                         <div style={{ fontSize: 8, color: 'rgba(255,255,255,.6)', marginTop: 1 }}>
                             목표 {todayData.targetCaloriesPerDay?.toLocaleString()} kcal
                         </div>
-                        <div style={{
-                            display: 'inline-block',
-                            background: 'rgba(255,255,255,.2)', borderRadius: 8,
-                            fontSize: 8, color: '#fff', padding: '2px 7px', marginTop: 3,
-                        }}>
+                        <div
+                            style={{
+                                display: 'inline-block',
+                                background: 'rgba(255,255,255,.2)',
+                                borderRadius: 8,
+                                fontSize: 8,
+                                color: '#fff',
+                                padding: '2px 7px',
+                                marginTop: 3,
+                            }}
+                        >
                             {today.remainingCalories?.toLocaleString()} kcal 남음
                         </div>
                     </div>
@@ -86,12 +117,19 @@ export default function DietTodayTab() {
 
                 {/* 식단 카드 */}
                 <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 4,
+                        }}
+                    >
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#1A1A1A' }}>🥗 오늘 식단</span>
                         <span style={{ fontSize: 9, color: '#4A7BFF' }}>상세보기</span>
                     </div>
                     <div style={{ background: '#fff', borderRadius: 12, padding: '10px 11px' }}>
-                        {MEAL_TYPES.map(type =>
+                        {MEAL_TYPES.map((type) =>
                             grouped[type].length > 0 ? (
                                 <MealSection
                                     key={type}
@@ -106,17 +144,23 @@ export default function DietTodayTab() {
                 </div>
 
                 {/* 힌트 */}
-                <div style={{
-                    background: '#F2EEE8', borderRadius: 8,
-                    padding: '6px 9px', display: 'flex', alignItems: 'center', gap: 6,
-                }}>
+                <div
+                    style={{
+                        background: '#F2EEE8',
+                        borderRadius: 8,
+                        padding: '6px 9px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                    }}
+                >
                     <svg width="14" height="14" viewBox="0 0 14 14" style={{ flexShrink: 0 }}>
                         <circle cx="7" cy="7" r="6" fill="none" stroke="#B8B4AE" strokeWidth="1.2" />
                         <path d="M7 6 L7 10" stroke="#B8B4AE" strokeWidth="1.3" strokeLinecap="round" />
                         <circle cx="7" cy="4.5" r=".8" fill="#B8B4AE" />
                     </svg>
                     <span style={{ fontSize: 9, color: '#6B6866', lineHeight: 1.4 }}>
-                        음식명 탭 시 재료 구성과 조리법을 볼 수 있어요
+                        음식명 탭 시 수정 및 상태 변경이 가능해요
                     </span>
                 </div>
             </div>
