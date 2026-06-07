@@ -13,6 +13,7 @@ import com.fitroute.domain.plan.repository.DailyPlanRepository;
 import com.fitroute.domain.plan.repository.PlanItemRepository;
 import com.fitroute.domain.user.entity.UserProfile;
 import com.fitroute.domain.user.repository.UserProfileRepository;
+import com.fitroute.global.cache.CacheKeyConstants;
 import com.fitroute.global.enums.PlanItemStatus;
 import com.fitroute.global.enums.PlanItemType;
 import com.fitroute.global.event.DashboardCacheEvictEvent;
@@ -47,7 +48,6 @@ public class DashboardService {
         private final ObjectMapper objectMapper;
         private final ApplicationEventPublisher eventPublisher;
 
-        private static final String CACHE_KEY_PREFIX = "today:";
         private static final long CACHE_TTL_MINUTES = 15;
 
         // ─────────────────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ public class DashboardService {
         // ─────────────────────────────────────────────────────────────────────
 
         public DashboardResponse getDashboard(Long userId) {
-                String cacheKey = CACHE_KEY_PREFIX + userId;
+                String cacheKey = CacheKeyConstants.TODAY_CACHE_PREFIX + userId;
 
                 // 1. Redis 캐시 조회
                 try {

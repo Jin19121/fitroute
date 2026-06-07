@@ -6,6 +6,7 @@ import com.fitroute.domain.user.entity.User;
 import com.fitroute.domain.user.entity.UserProfile;
 import com.fitroute.domain.user.repository.UserRepository;
 import com.fitroute.domain.user.repository.UserProfileRepository;
+import com.fitroute.global.cache.CacheKeyConstants;
 import com.fitroute.global.enums.UserRole;
 import com.fitroute.global.exception.ErrorCode;
 import com.fitroute.global.jwt.JwtProvider;
@@ -22,8 +23,6 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AuthService {
-
-    private static final String REFRESH_TOKEN_PREFIX = "RT:";
 
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
@@ -68,8 +67,8 @@ public class AuthService {
         String refreshToken = jwtProvider.createRefreshToken(user.getId());
 
         redisTemplate.opsForValue().set(
-                REFRESH_TOKEN_PREFIX + user.getId(),
-                refreshToken,
+                CacheKeyConstants.REFRESH_TOKEN_PREFIX + user.getId(),
+                        refreshToken,
                 jwtProvider.getRefreshTokenValidMs(),
                 TimeUnit.MILLISECONDS);
 
@@ -92,7 +91,7 @@ public class AuthService {
         String refreshToken = jwtProvider.createRefreshToken(user.getId());
 
         redisTemplate.opsForValue().set(
-                REFRESH_TOKEN_PREFIX + user.getId(),
+                CacheKeyConstants.REFRESH_TOKEN_PREFIX + user.getId(),
                 refreshToken,
                 jwtProvider.getRefreshTokenValidMs(),
                 TimeUnit.MILLISECONDS);
@@ -105,7 +104,7 @@ public class AuthService {
         jwtProvider.validate(refreshToken);
 
         Long userId = jwtProvider.getUserId(refreshToken);
-        String redisKey = REFRESH_TOKEN_PREFIX + userId;
+        String redisKey = CacheKeyConstants.REFRESH_TOKEN_PREFIX + userId;
 
         String storedToken = redisTemplate.opsForValue().get(redisKey);
         if (storedToken == null || !storedToken.equals(refreshToken)) {
@@ -133,7 +132,7 @@ public class AuthService {
     @Transactional
     public void logout(Long userId, String accessToken) {
         // 1. Refresh Token 삭제
-        redisTemplate.delete(REFRESH_TOKEN_PREFIX + userId);
+        redisTemplate.delete(CacheKeyConstants.REFRESH_TOKEN_PREFIX + userId);
 
         // 2. Access Token 블랙리스트 등록
         if (accessToken != null) {

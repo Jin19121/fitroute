@@ -12,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import com.fitroute.global.cache.CacheKeyConstants;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,7 +63,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private boolean isBlacklisted(String token) {
         try {
-            return Boolean.TRUE.equals(redisTemplate.hasKey("BL:" + token));
+            return Boolean.TRUE.equals(
+                    redisTemplate.hasKey(CacheKeyConstants.BLACKLIST_PREFIX + token));
         } catch (Exception e) {
             // Redis 장애 시 false 반환 → 필터 통과 허용
             return false;

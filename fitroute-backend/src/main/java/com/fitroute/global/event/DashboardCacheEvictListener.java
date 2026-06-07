@@ -8,6 +8,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import com.fitroute.global.cache.CacheKeyConstants;
 
 @Slf4j
 @Component
@@ -15,8 +16,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class DashboardCacheEvictListener {
 
     private final RedisTemplate<String, String> redisTemplate;
-
-    private static final String CACHE_KEY_PREFIX = "today:";
 
     /**
      * DB 커밋 완료 시점에 캐시 무효화 실행
@@ -35,7 +34,7 @@ public class DashboardCacheEvictListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onDashboardCacheEvict(DashboardCacheEvictEvent event) {
-        String cacheKey = CACHE_KEY_PREFIX + event.userId();
+        String cacheKey = CacheKeyConstants.TODAY_CACHE_PREFIX + event.userId();
         try {
             Boolean deleted = redisTemplate.delete(cacheKey);
             if (Boolean.TRUE.equals(deleted)) {
