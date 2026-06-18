@@ -8,9 +8,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.util.StringUtils;
 
 @Configuration
 public class RedisConfig {
@@ -21,9 +23,20 @@ public class RedisConfig {
     @Value("${spring.data.redis.port}")
     private int port;
 
+    // ✅ 추가: 비밀번호가 없으면 빈 문자열로 처리
+    @Value("${spring.data.redis.password:}")
+    private String password;
+
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
-        return new LettuceConnectionFactory(host, port);
+        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(host, port);
+
+        // ✅ 비밀번호가 있는 경우에만 설정 (로컬은 비밀번호 없음, 프로덕션은 있음)
+        if (StringUtils.hasText(password)) {
+            config.setPassword(password);
+        }
+
+        return new LettuceConnectionFactory(config);
     }
 
     @Bean
@@ -35,18 +48,6 @@ public class RedisConfig {
         return template;
     }
 
-    /**
-     * DashboardResponse JSON 직렬화/역직렬화용 ObjectMapper
-     *
-     * JavaTimeModule 등록 이유:
-     * DashboardResponse에 LocalDate 타입 필드가 있음.
-     * 기본 ObjectMapper는 LocalDate를 배열([2025,6,7])로 직렬화하는데,
-     * JavaTimeModule을 등록하면 "2025-06-07" 문자열로 처리되어
-     * Redis에서 꺼낼 때 역직렬화가 정상 동작함.
-     *
-     * WRITE_DATES_AS_TIMESTAMPS 비활성화:
-     * 날짜를 숫자 타임스탬프가 아닌 ISO-8601 문자열로 저장하기 위함.
-     */
     @Bean
     public ObjectMapper objectMapper() {
         return new ObjectMapper()

@@ -1,0 +1,26 @@
+# =============================================
+# 프로덕션 전용 설정
+# EC2에서 java -jar -Dspring.profiles.active=prod 로 실행
+# =============================================
+
+spring:
+  config:
+    import:
+      # ✅ 서버 시작 시 Secrets Manager에서 자동으로 값을 가져와서 주입
+      - "aws-secretsmanager:fitroute/prod/db"
+      - "aws-secretsmanager:fitroute/prod/jwt"
+      - "aws-secretsmanager:fitroute/prod/redis"
+      - "aws-secretsmanager:fitroute/prod/app"
+
+  cloud:
+    aws:
+      region:
+        static: ap-northeast-2
+      credentials:
+        instance-profile: true   # EC2 IAM Role 자동 사용 (fitroute-prod-role)
+
+  # 프로덕션 JPA 설정 (DDL 자동 실행 방지)
+  jpa:
+    hibernate:
+      ddl-auto: validate          # update → validate (프로덕션에서 스키마 자동 변경 방지)
+    show-sql: false               # 로그 최소화

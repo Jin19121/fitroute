@@ -14,7 +14,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    defer-datasource-initialization: true  # ← 이걸 추가
+    defer-datasource-initialization: true
     show-sql: true
     properties:
       hibernate:
@@ -29,12 +29,12 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-  
-# application.yml
+      password: ${REDIS_PASSWORD:}   # ✅ 추가: 비어있으면 비밀번호 없음
+
 ai:
   gemini:
     api:
-      key: ${GOOGLE_API_KEY}                          # 환경변수로 주입
+      key: ${GOOGLE_API_KEY}
       base-url: https://generativelanguage.googleapis.com/v1beta
       model: gemini-2.5-flash-lite
       timeout-seconds: 30
