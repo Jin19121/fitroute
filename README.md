@@ -7,6 +7,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev/)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=flat-square&logo=mysql)](https://www.mysql.com/)
 [![Redis](https://img.shields.io/badge/Redis-7.2-DC382D?style=flat-square&logo=redis)](https://redis.io/)
+[![AWS](https://img.shields.io/badge/AWS-EC2-FF9900?style=flat-square&logo=amazonaws)](https://aws.amazon.com/)
 
 ---
 
@@ -20,6 +21,7 @@
 - [API 설계](#api-설계)
 - [프로젝트 구조](#프로젝트-구조)
 - [환경 설정 및 실행](#환경-설정-및-실행)
+- [AWS 배포](#aws-배포)
 - [심화 설계](#심화-설계)
 
 ---
@@ -103,11 +105,14 @@ AI 추천 품질 지속 개선 (Feedback Loop)
 
 ### Infrastructure
 
-| 구분 | 기술 |
-|------|------|
-| Container | Docker + Docker Compose |
-| DB | MySQL 8.0 (utf8mb4) |
-| Cache | Redis 7.2 |
+| 구분 | 기술 | 비고 |
+|------|------|------|
+| Cloud | AWS EC2 (t3.small) | Amazon Linux 2023 |
+| DB | MySQL 8.4 (EC2 내 설치) | 단일 서버 구성 |
+| Cache | Redis 6 (EC2 내 설치) | 단일 서버 구성 |
+| 시크릿 관리 | AWS Secrets Manager + KMS | DB/JWT/Redis/API 키 분리 관리 |
+| IAM | EC2 Instance Profile | Secrets Manager 접근 권한 |
+| Container (로컬) | Docker + Docker Compose | 로컬 개발 환경용 |
 
 ---
 
@@ -115,40 +120,46 @@ AI 추천 품질 지속 개선 (Feedback Loop)
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    React (Vite)                          │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
-│  │Dashboard │ │  Diet    │ │ Workout  │ │  Report   │  │
-│  └──────────┘ └──────────┘ └──────────┘ └───────────┘  │
-│           Zustand (planStore / authStore)                │
-│              Axios (JWT interceptor, silent refresh)      │
+│                    React (Vite)                         │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐   │
+│  │Dashboard │ │  Diet    │ │ Workout  │ │  Report   │   │
+│  └──────────┘ └──────────┘ └──────────┘ └───────────┘   │
+│           Zustand (planStore / authStore)               │
+│              Axios (JWT interceptor, silent refresh)    │
 └──────────────────────┬──────────────────────────────────┘
                        │ HTTP REST
 ┌──────────────────────▼──────────────────────────────────┐
-│              Spring Boot 3.5 (Port 8080)                 │
-│                                                          │
-│  Controller → Service → Repository                       │
-│                                                          │
+│         AWS EC2 t3.small (Amazon Linux 2023)            │
+│              Spring Boot 3.5 (Port 8080)                │
+│                                                         │
+│  Controller → Service → Repository                      │
+│                                                         │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  │
 │  │ AuthService │  │DailyPlanSvc  │  │ DashboardSvc   │  │
-│  │ (JWT+Redis) │  │(AI+DB Plan)  │  │ (Log 집계)     │  │
+│  │ (JWT+Redis) │  │(AI+DB Plan)  │  │ (Log 집계)      │  │
 │  └─────────────┘  └──────┬───────┘  └────────────────┘  │
-│                           │                              │
+│                           │                             │
 │  ┌─────────────┐  ┌──────▼───────┐  ┌────────────────┐  │
 │  │ LogService  │  │ GeminiClient │  │ ReportService  │  │
-│  │(Plan→Log)   │  │(AI 연동)     │  │(월간 집계)     │  │
+│  │(Plan→Log)   │  │ (AI 연동)     │  │  (월간 집계)     │  │
 │  └─────────────┘  └──────────────┘  └────────────────┘  │
-│                                                          │
-│  AES-256-GCM (이메일 암호화) + SHA-256 (검색용 해시)    │
+│                                                         │
+│        AES-256-GCM (이메일 암호화) + SHA-256 (검색용 해시)    │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │           AWS Secrets Manager + KMS              │   │
+│  │  fitroute/prod/db  · jwt  · redis  · app         │   │
+│  └──────────────────────────────────────────────────┘   │
 └───────────┬──────────────────┬──────────────────────────┘
             │                  │
     ┌───────▼──────┐   ┌───────▼──────┐
-    │  MySQL 8.0   │   │  Redis 7.2   │
-    │  (JPA/ORM)   │   │  (RT 저장)   │
+    │  MySQL 8.4   │   │  Redis 6     │
+    │   (EC2 내부)  │   │  (EC2 내부)   │
     └──────────────┘   └──────────────┘
                        │
                ┌───────▼──────────┐
                │  Google Gemini   │
-               │  API (Flash Lite) │
+               │ API (Flash Lite) │
                └──────────────────┘
 ```
 
@@ -449,6 +460,79 @@ npm run dev
 
 공공데이터포탈 Open API 또는 CSV를 통해 `foods` 테이블에 데이터를 적재합니다.
 AI 식단 추천 기능은 이 데이터를 기반으로 동작합니다.
+
+---
+
+## AWS 배포
+
+### 배포 구성
+
+단일 EC2 인스턴스에 Spring Boot, MySQL, Redis를 함께 운영합니다.
+시크릿은 AWS Secrets Manager + KMS로 분리 관리하며, EC2 Instance Profile(IAM Role)을 통해 애플리케이션이 자동으로 접근합니다.
+
+```
+AWS EC2 t3.small (Amazon Linux 2023)
+├── Spring Boot 8080
+├── MySQL 8.4 (localhost:3306)
+└── Redis 6     (localhost:6379)
+
+AWS Secrets Manager (KMS 암호화)
+├── fitroute/prod/db    → DB_URL, DB_USERNAME, DB_PASSWORD
+├── fitroute/prod/jwt   → JWT_SECRET
+├── fitroute/prod/redis → REDIS_HOST, REDIS_PORT
+└── fitroute/prod/app   → AES_KEY, GOOGLE_API_KEY
+
+IAM Role: fitroute-prod-role
+└── SecretsManagerReadWrite
+└── AWSKeyManagementServicePowerUser
+```
+
+### 프로덕션 프로파일
+
+`application-prod.yml`에서 AWS Secrets Manager를 통해 모든 환경 변수를 주입받습니다.
+
+```yaml
+spring:
+  config:
+    import:
+      - "aws-secretsmanager:fitroute/prod/db"
+      - "aws-secretsmanager:fitroute/prod/jwt"
+      - "aws-secretsmanager:fitroute/prod/redis"
+      - "aws-secretsmanager:fitroute/prod/app"
+  cloud:
+    aws:
+      region:
+        static: ap-northeast-2
+      credentials:
+        instance-profile: true
+```
+
+### 배포 명령어
+
+```bash
+# 1. 로컬 빌드
+./gradlew bootJar -x test
+
+# 2. EC2 전송
+scp -i ~/.ssh/fitroute-prod-key.pem \
+  build/libs/fitroute-0.0.1-SNAPSHOT.jar \
+  ec2-user@{EC2_IP}:/home/ec2-user/fitroute/
+
+# 3. EC2에서 실행
+SPRING_PROFILES_ACTIVE=prod java \
+  -Xms256m -Xmx512m \
+  -jar fitroute-0.0.1-SNAPSHOT.jar
+```
+
+### 확장 가능한 구조
+
+현재는 단일 EC2 구성이나, 아래와 같이 관리형 서비스로 분리 가능한 구조로 설계되어 있습니다.
+
+| 현재 | 확장 시 |
+|------|---------|
+| EC2 내 MySQL | Amazon RDS (MySQL) |
+| EC2 내 Redis | Amazon ElastiCache (Redis) |
+| EC2 직접 접근 | ALB + HTTPS 도메인 연결 |
 
 ---
 
